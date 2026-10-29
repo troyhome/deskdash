@@ -26,14 +26,7 @@ struct AITokensCard: View {
     @Environment(TokenStore.self) private var tokens
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("AI tokens today", systemImage: "sparkles").font(.headline)
-                Spacer()
-                Button { TokenSettingsWindowController.shared.show() } label: { Image(systemName: "key") }
-                    .buttonStyle(.borderless)
-                    .help("Connect API accounts")
-            }
+        VStack(alignment: .leading, spacing: 14) {
             ForEach(tokens.usage) { usage in
                 ProviderRow(usage: usage, limits: tokens.limits[usage.provider] ?? [],
                             problem: tokens.problems[usage.provider])
@@ -48,15 +41,16 @@ struct ProviderRow: View {
     let problem: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                Circle().fill(usage.provider.color).frame(width: 8, height: 8)
-                Text(usage.provider.title).font(.callout.weight(.medium))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Circle().fill(usage.provider.color).frame(width: 11, height: 11)
+                Text(usage.provider.title).font(.title3.weight(.semibold))
                 Spacer()
                 if usage.hasData {
-                    Text(TokenFormat.short(usage.today.total)).font(.callout.monospacedDigit())
+                    Text(TokenFormat.short(usage.today.total)).font(.title3.monospacedDigit().weight(.semibold))
+                    Text("today").font(.callout).foregroundStyle(.secondary)
                 } else if limits.isEmpty {
-                    Text("No usage found").font(.caption).foregroundStyle(.secondary)
+                    Text("No usage found").font(.callout).foregroundStyle(.secondary)
                 }
             }
             ForEach(limits) { limit in
@@ -65,12 +59,13 @@ struct ProviderRow: View {
             if usage.hasData {
                 HourlyBars(values: usage.hourly, color: usage.provider.color)
                 Text(detail)
-                    .font(.caption2)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             if let problem {
-                Text(problem).font(.caption2).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                Text(problem).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
         }
         .help(tooltip)
@@ -80,7 +75,6 @@ struct ProviderRow: View {
         var parts = ["\(TokenFormat.short(usage.lastHour.total)) last hour",
                      "\(TokenFormat.short(usage.last7Days.total)) week",
                      "\(TokenFormat.short(usage.last30Days.total)) 30 days"]
-        if let top = usage.modelsToday.first { parts.append(top.model) }
         return parts.joined(separator: " · ")
     }
 
@@ -97,14 +91,14 @@ struct LimitBar: View {
     let limit: PlanLimit
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(limit.name).font(.caption)
-                Spacer()
-                Text("\(Int(limit.leftPercent.rounded()))% left").font(.caption.monospacedDigit().weight(.medium))
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(limit.name).font(.body)
+                Text("\(Int(limit.leftPercent.rounded()))% left").font(.body.monospacedDigit().weight(.semibold))
                     .foregroundStyle(color)
+                Spacer()
                 if let resets = limit.resetsAt {
-                    Text("resets \(resetText(resets))").font(.caption2).foregroundStyle(.secondary)
+                    Text("resets \(resetText(resets))").font(.callout).foregroundStyle(.secondary)
                 }
             }
             GeometryReader { geometry in
@@ -114,7 +108,7 @@ struct LimitBar: View {
                         .frame(width: geometry.size.width * CGFloat(min(100, max(0, limit.usedPercent)) / 100))
                 }
             }
-            .frame(height: 5)
+            .frame(height: 9)
         }
         .help("\(Int(limit.usedPercent.rounded()))% used")
     }
@@ -141,10 +135,10 @@ struct HourlyBars: View {
             ForEach(values.indices, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 1)
                     .fill(values[index] > 0 ? color : Color.secondary.opacity(0.15))
-                    .frame(height: max(2, 18 * CGFloat(Double(values[index]) / Double(biggest))))
+                    .frame(height: max(2, 28 * CGFloat(Double(values[index]) / Double(biggest))))
             }
         }
-        .frame(height: 18, alignment: .bottom)
+        .frame(height: 28, alignment: .bottom)
         .help("Tokens per hour, last 24 hours")
     }
 }

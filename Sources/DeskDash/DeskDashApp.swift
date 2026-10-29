@@ -27,4 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 enum Prefs {
     static let showDesktopWidget = "showDesktopWidget"
+    static let showDrives = "showDrives"
+    static let showAI = "showAI"
 }

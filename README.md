@@ -16,6 +16,7 @@ Needs macOS 14 or newer and Xcode.
 Tools/deskdash.sh run       # build and open
 Tools/deskdash.sh install   # put an optimized copy in /Applications
 Tools/deskdash.sh test      # run the tests
+Tools/deskdash.sh dmg       # make DeskDash-<version>.dmg on the Desktop, for another Mac
 ```
 
 To see everything on the Mac's own disk, give DeskDash Full Disk Access in

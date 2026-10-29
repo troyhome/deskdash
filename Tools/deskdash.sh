@@ -6,6 +6,8 @@
 #   Tools/deskdash.sh run       build, then open it (quits a running copy first)
 #   Tools/deskdash.sh test      run the tests
 #   Tools/deskdash.sh install   build an optimized, notarized copy into /Applications and open it
+#   Tools/deskdash.sh dmg       build an optimized, notarized copy and pack it as DeskDash-<version>.dmg on the
+#                               Desktop, to copy to another Mac (open it, drag DeskDash to Applications)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -61,6 +63,17 @@ make_app() {
     echo "Built $app"
 }
 
+# Optimized build, signed and notarized: release_app
+release_app() {
+    make_app release "$OUT/Release/DeskDash.app"
+    # The shared script signs and notarizes all of Troy's apps; this script's own copy is the fallback.
+    if [[ -x "$HOME/bin/sign-and-notarize" ]]; then
+        "$HOME/bin/sign-and-notarize" "$OUT/Release/DeskDash.app"
+    else
+        notarize_app "$OUT/Release/DeskDash.app"
+    fi
+}
+
 case "${1:-build}" in
     build)
         make_app debug "$OUT/DeskDash.app"
@@ -74,20 +87,27 @@ case "${1:-build}" in
         swift test --package-path "$ROOT" --scratch-path "$OUT/build"
         ;;
     install)
-        make_app release "$OUT/Release/DeskDash.app"
-        # The shared script signs and notarizes all of Troy's apps; this script's own copy is the fallback.
-        if [[ -x "$HOME/bin/sign-and-notarize" ]]; then
-            "$HOME/bin/sign-and-notarize" "$OUT/Release/DeskDash.app"
-        else
-            notarize_app "$OUT/Release/DeskDash.app"
-        fi
+        release_app
         pkill -x DeskDash 2>/dev/null || true
         rm -rf /Applications/DeskDash.app
         cp -R "$OUT/Release/DeskDash.app" /Applications/DeskDash.app
         open /Applications/DeskDash.app
         ;;
+    dmg)
+        release_app
+        version="$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$ROOT/Resources/Info.plist")"
+        stage="$OUT/dmg"
+        rm -rf "$stage" && mkdir -p "$stage"
+        cp -R "$OUT/Release/DeskDash.app" "$stage/"
+        ln -s /Applications "$stage/Applications"
+        dmg="$HOME/Desktop/DeskDash-$version.dmg"
+        rm -f "$dmg"
+        hdiutil create -volname "DeskDash $version" -srcfolder "$stage" -ov -format UDZO "$dmg"
+        rm -rf "$stage"
+        echo "Made $dmg"
+        ;;
     *)
-        echo "Usage: Tools/deskdash.sh build|run|test|install" >&2
+        echo "Usage: Tools/deskdash.sh build|run|test|install|dmg" >&2
         exit 1
         ;;
 esac
