@@ -90,3 +90,15 @@ final class SuggestionTests: XCTestCase {
 private func item(_ path: String, _ bytes: Int64, modified: Date? = nil) -> ScanItem {
     ScanItem(url: URL(fileURLWithPath: path), bytes: bytes, category: Classifier.category(forPath: path), modified: modified)
 }
+
+final class DriveListTests: XCTestCase {
+    func testSharesOfOneNetworkDiskAreListedOnce() {
+        func share(_ name: String, free: Int64, server: String = "crusher") -> Drive {
+            Drive(id: "/Volumes/\(name)", name: name, url: URL(fileURLWithPath: "/Volumes/\(name)"), kind: .network,
+                  isBoot: false, isEjectable: true, totalBytes: 10_000, availableBytes: free, server: server)
+        }
+        let merged = DriveList.mergingShares([share("PHOTOS", free: 1), share("music", free: 1),
+                                              share("Movies Shows", free: 1), share("Backup", free: 5)])
+        XCTAssertEqual(merged.map(\.name), ["crusher (Movies Shows, music, PHOTOS)", "Backup"])
+    }
+}

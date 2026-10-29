@@ -142,6 +142,7 @@ struct AITokensPlaceholder: View {
             Text("Coming next: live usage from Anthropic, OpenAI and Google.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 6) {
                 ForEach(["Anthropic", "OpenAI", "Google"], id: \.self) { provider in
                     Text(provider)

@@ -15,9 +15,11 @@ public struct Drive: Identifiable, Hashable, Sendable {
     public let isEjectable: Bool
     public let totalBytes: Int64
     public let availableBytes: Int64
+    /// The server a network share comes from ("crusher"), nil for local drives.
+    public let server: String?
 
     public init(id: String, name: String, url: URL, kind: Kind, isBoot: Bool, isEjectable: Bool,
-                totalBytes: Int64, availableBytes: Int64) {
+                totalBytes: Int64, availableBytes: Int64, server: String? = nil) {
         self.id = id
         self.name = name
         self.url = url
@@ -26,6 +28,7 @@ public struct Drive: Identifiable, Hashable, Sendable {
         self.isEjectable = isEjectable
         self.totalBytes = totalBytes
         self.availableBytes = availableBytes
+        self.server = server
     }
 
     public var usedBytes: Int64 { max(0, totalBytes - availableBytes) }
@@ -44,13 +47,43 @@ public enum DriveList {
         .volumeNameKey, .volumeLocalizedNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
         .volumeAvailableCapacityForImportantUsageKey, .volumeIsInternalKey, .volumeIsLocalKey,
         .volumeIsEjectableKey, .volumeIsRootFileSystemKey, .volumeIsBrowsableKey,
+        .volumeURLForRemountingKey,
     ]
 
     /// The drives mounted right now: the Mac's own disk first, then external drives, then network shares.
     public static func current() -> [Drive] {
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys,
                                                          options: [.skipHiddenVolumes]) ?? []
-        return urls.compactMap(drive(at:)).sorted(by: order)
+        return mergingShares(urls.compactMap(drive(at:))).sorted(by: order)
+    }
+
+    /// Several shares from one network disk (same server, same size, same free space) are one disk: list it once,
+    /// named after its shares.
+    static func mergingShares(_ drives: [Drive]) -> [Drive] {
+        var result: [Drive] = []
+        var shares: [String: [Drive]] = [:]
+        var keys: [String] = []
+        for drive in drives {
+            guard drive.kind == .network, let server = drive.server else {
+                result.append(drive)
+                continue
+            }
+            let key = "\(server)|\(drive.totalBytes)|\(drive.availableBytes)"
+            if shares[key] == nil { keys.append(key) }
+            shares[key, default: []].append(drive)
+        }
+        for key in keys {
+            guard let group = shares[key], let first = group.first else { continue }
+            if group.count == 1 {
+                result.append(first)
+                continue
+            }
+            let names = group.map(\.name).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            result.append(Drive(id: first.id, name: "\(first.server ?? first.name) (\(names.joined(separator: ", ")))",
+                                url: first.url, kind: .network, isBoot: false, isEjectable: first.isEjectable,
+                                totalBytes: first.totalBytes, availableBytes: first.availableBytes, server: first.server))
+        }
+        return result
     }
 
     static func drive(at url: URL) -> Drive? {
@@ -75,7 +108,8 @@ public enum DriveList {
         let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
         return Drive(id: path, name: name, url: url, kind: kind, isBoot: isBoot,
                      isEjectable: values.volumeIsEjectable ?? false,
-                     totalBytes: Int64(total), availableBytes: min(available, Int64(total)))
+                     totalBytes: Int64(total), availableBytes: min(available, Int64(total)),
+                     server: kind == .network ? values.volumeURLForRemounting?.host : nil)
     }
 
     static func order(_ a: Drive, _ b: Drive) -> Bool {
