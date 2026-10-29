@@ -22,6 +22,8 @@ public enum UsageSource: String, Hashable, Sendable {
     case codex = "Codex"
     /// Gemini CLI's logs on this Mac.
     case geminiCLI = "Gemini CLI"
+    /// Google Antigravity's logs on this Mac.
+    case antigravity = "Antigravity"
     /// The provider's usage report for the whole account (needs an admin key).
     case accountAPI = "API account"
 }

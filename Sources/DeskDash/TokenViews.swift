@@ -16,7 +16,7 @@ extension AIProvider {
         switch self {
         case .anthropic: "Claude Code"
         case .openai: "Codex"
-        case .google: "Gemini CLI"
+        case .google: "Antigravity, Gemini CLI"
         }
     }
 }
@@ -115,7 +115,7 @@ struct TokenSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("DeskDash already reads usage from Claude Code, Codex and Gemini CLI on this Mac, with no setup. "
+                Text("DeskDash already reads usage from Claude Code, Codex, Antigravity and Gemini CLI on this Mac, with no setup. "
                      + "To also see everything your API accounts use (other apps, scripts, teammates), paste an admin key below.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -127,7 +127,7 @@ struct TokenSettingsView: View {
                        help: "platform.openai.com > Settings > Organization > Admin keys.")
             Section("Google") {
                 Text("Google has no usage report for Gemini API keys yet (only through Google Cloud billing), "
-                     + "so DeskDash shows Gemini CLI usage from this Mac.")
+                     + "so DeskDash shows Antigravity and Gemini CLI usage from this Mac.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

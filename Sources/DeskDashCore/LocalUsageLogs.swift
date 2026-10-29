@@ -7,6 +7,7 @@ import Foundation
 ///   the reply's `usage`.
 /// - Codex CLI: `~/.codex/sessions/**/rollout-*.jsonl`, `token_count` events.
 /// - Gemini CLI: `~/.gemini/tmp/*/chats/session-*.json`, `tokens` on each Gemini message.
+/// - Antigravity: `~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl`, one line per step.
 ///
 /// Files are only re-read when they change.
 public final class LocalUsageLogs: @unchecked Sendable {
@@ -36,6 +37,14 @@ public final class LocalUsageLogs: @unchecked Sendable {
         for file in files(under: home.appendingPathComponent(".gemini/tmp"), suffix: ".json", since: since)
         where file.path.contains("/chats/") {
             all += cached(file) { Self.geminiEvents(in: $0) }
+        }
+        // Antigravity's folders start with a dot, so they're looked up directly instead of walked.
+        let brain = home.appendingPathComponent(".gemini/antigravity/brain")
+        for chat in (try? FileManager.default.contentsOfDirectory(atPath: brain.path)) ?? [] {
+            let file = brain.appendingPathComponent(chat).appendingPathComponent(".system_generated/logs/transcript.jsonl")
+            let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            guard let modified, modified >= since else { continue }
+            all += cached(file) { Self.antigravityEvents(in: $0) }
         }
         return all.filter { $0.date >= since }
     }
@@ -137,6 +146,19 @@ public final class LocalUsageLogs: @unchecked Sendable {
             return UsageEvent(provider: .google, source: .geminiCLI, model: message["model"] as? String ?? "gemini",
                               date: date, tokens: count)
         }
+    }
+
+    static func antigravityEvents(in data: Data) -> [UsageEvent] {
+        var events: [UsageEvent] = []
+        forEachJSONLine(in: data, containing: "\"output_tokens\"") { line in
+            guard let date = (line["created_at"] as? String).flatMap(parseDate) else { return }
+            let tokens = TokenCount(input: int(line["input_tokens"]), output: int(line["output_tokens"]),
+                                    cacheRead: int(line["cache_read_tokens"]))
+            guard tokens.total > 0 else { return }
+            events.append(UsageEvent(provider: .google, source: .antigravity,
+                                     model: line["model"] as? String ?? "gemini", date: date, tokens: tokens))
+        }
+        return events
     }
 
     // MARK: Helpers

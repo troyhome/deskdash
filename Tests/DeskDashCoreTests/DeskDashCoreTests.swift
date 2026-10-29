@@ -139,6 +139,17 @@ final class TokenUsageTests: XCTestCase {
         XCTAssertEqual(events.first?.tokens, TokenCount(input: 150, output: 40, cacheRead: 50))
     }
 
+    func testAntigravityTranscript() {
+        let log = """
+        {"step_index":0,"type":"USER_INPUT","created_at":"2026-10-19T00:22:36Z","content":"hi"}
+        {"step_index":1,"type":"PLANNER_RESPONSE","created_at":"2026-10-19T00:22:36Z","input_tokens":15760,"cache_read_tokens":100,"output_tokens":145}
+        """
+        let events = LocalUsageLogs.antigravityEvents(in: Data(log.utf8))
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.tokens, TokenCount(input: 15760, output: 145, cacheRead: 100))
+        XCTAssertEqual(events.first?.source, .antigravity)
+    }
+
     func testAnthropicReport() {
         let report = """
         {"data":[{"starting_at":"2026-10-29T09:00:00Z","ending_at":"2026-10-29T10:00:00Z","results":[
