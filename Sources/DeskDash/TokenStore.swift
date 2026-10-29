@@ -11,11 +11,16 @@ final class TokenStore {
     /// Problems reading an account report, per provider, in plain words.
     private(set) var problems: [AIProvider: String] = [:]
     private(set) var updatedAt: Date?
+    /// How much of each subscription plan's limits is left (Claude via Claude Code's sign-in, ChatGPT via Codex).
+    private(set) var limits: [AIProvider: [PlanLimit]] = [:]
 
     @ObservationIgnored private let logs = LocalUsageLogs()
     @ObservationIgnored private var localEvents: [UsageEvent] = []
     @ObservationIgnored private var accountEvents: [AIProvider: [UsageEvent]] = [:]
     @ObservationIgnored private var lastAccountFetch: Date = .distantPast
+    @ObservationIgnored private var lastClaudeLimitsFetch: Date = .distantPast
+    /// Read from the Keychain once and kept, so macOS doesn't ask over and over; read again when it stops working.
+    @ObservationIgnored private var claudeToken: String?
     @ObservationIgnored private var refreshing = false
 
     private init() {
@@ -39,6 +44,13 @@ final class TokenStore {
         refresh()
     }
 
+    /// Claude Code's sign-in, which carries the Claude plan's limits. Kept in the Keychain on a Mac.
+    private static func claudeCodeToken() -> String? {
+        let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
+        let saved = Keychain.readData(service: "Claude Code-credentials") ?? (try? Data(contentsOf: file))
+        return saved.flatMap { PlanLimits.claudeToken(fromCredentials: $0) }
+    }
+
     func refresh() {
         guard !refreshing else { return }
         refreshing = true
@@ -50,10 +62,25 @@ final class TokenStore {
             })
             : [:]
         if fetchAccounts { lastAccountFetch = Date() }
+        // Claude's plan limits: every 2 minutes is plenty (it's the same check Claude Code's /usage does).
+        var claudeToken: String?
+        if Date().timeIntervalSince(lastClaudeLimitsFetch) > 120 {
+            lastClaudeLimitsFetch = Date()
+            if self.claudeToken == nil { self.claudeToken = Self.claudeCodeToken() }
+            claudeToken = self.claudeToken
+        }
 
         Task {
             let local = await Task.detached(priority: .utility) { logs.events() }.value
             localEvents = local
+            limits[.openai] = await Task.detached(priority: .utility) { PlanLimits.latestCodex() }.value
+            if let claudeToken {
+                do {
+                    limits[.anthropic] = try await PlanLimits.fetchClaude(token: claudeToken)
+                } catch {
+                    self.claudeToken = nil   // expired or renewed by Claude Code: read it again next time
+                }
+            }
             for (provider, key) in keys {
                 do {
                     accountEvents[provider] = try await AccountUsage.fetch(provider, key: key)

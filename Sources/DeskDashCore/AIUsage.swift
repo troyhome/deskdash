@@ -79,6 +79,7 @@ public struct ProviderUsage: Identifiable, Hashable, Sendable {
     public var lastHour = TokenCount()
     public var today = TokenCount()
     public var last7Days = TokenCount()
+    public var last30Days = TokenCount()
     /// Tokens per hour for the last 24 hours, oldest first.
     public var hourly: [Int64] = Array(repeating: 0, count: 24)
     /// Today's tokens by model, biggest first.
@@ -92,6 +93,7 @@ public struct ProviderUsage: Identifiable, Hashable, Sendable {
 
     public static func == (a: ProviderUsage, b: ProviderUsage) -> Bool {
         a.provider == b.provider && a.lastHour == b.lastHour && a.today == b.today && a.last7Days == b.last7Days
+            && a.last30Days == b.last30Days
             && a.hourly == b.hourly && a.sources == b.sources
     }
 
@@ -111,6 +113,7 @@ public enum UsageSummary {
                                  calendar: Calendar = .current) -> [ProviderUsage] {
         let startOfToday = calendar.startOfDay(for: now)
         let weekAgo = calendar.date(byAdding: .day, value: -6, to: startOfToday) ?? startOfToday
+        let monthAgo = calendar.date(byAdding: .day, value: -29, to: startOfToday) ?? startOfToday
         let hourAgo = now.addingTimeInterval(-3600)
         let dayAgo = now.addingTimeInterval(-24 * 3600)
 
@@ -121,6 +124,7 @@ public enum UsageSummary {
             for event in mine {
                 usage.sources.insert(event.source)
                 if event.date >= hourAgo { usage.lastHour += event.tokens }
+                if event.date >= monthAgo { usage.last30Days += event.tokens }
                 if event.date >= weekAgo { usage.last7Days += event.tokens }
                 if event.date >= startOfToday {
                     usage.today += event.tokens

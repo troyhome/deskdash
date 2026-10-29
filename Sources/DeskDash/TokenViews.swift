@@ -35,7 +35,8 @@ struct AITokensCard: View {
                     .help("Connect API accounts")
             }
             ForEach(tokens.usage) { usage in
-                ProviderRow(usage: usage, problem: tokens.problems[usage.provider])
+                ProviderRow(usage: usage, limits: tokens.limits[usage.provider] ?? [],
+                            problem: tokens.problems[usage.provider])
             }
         }
     }
@@ -43,6 +44,7 @@ struct AITokensCard: View {
 
 struct ProviderRow: View {
     let usage: ProviderUsage
+    let limits: [PlanLimit]
     let problem: String?
 
     var body: some View {
@@ -53,9 +55,12 @@ struct ProviderRow: View {
                 Spacer()
                 if usage.hasData {
                     Text(TokenFormat.short(usage.today.total)).font(.callout.monospacedDigit())
-                } else {
+                } else if limits.isEmpty {
                     Text("No usage found").font(.caption).foregroundStyle(.secondary)
                 }
+            }
+            ForEach(limits) { limit in
+                LimitBar(limit: limit)
             }
             if usage.hasData {
                 HourlyBars(values: usage.hourly, color: usage.provider.color)
@@ -73,7 +78,8 @@ struct ProviderRow: View {
 
     private var detail: String {
         var parts = ["\(TokenFormat.short(usage.lastHour.total)) last hour",
-                     "\(TokenFormat.short(usage.last7Days.total)) this week"]
+                     "\(TokenFormat.short(usage.last7Days.total)) week",
+                     "\(TokenFormat.short(usage.last30Days.total)) 30 days"]
         if let top = usage.modelsToday.first { parts.append(top.model) }
         return parts.joined(separator: " · ")
     }
@@ -83,6 +89,44 @@ struct ProviderRow: View {
             .map { "\($0.key.rawValue): \(TokenFormat.short($0.value)) today" }
         let models = usage.modelsToday.prefix(4).map { "\($0.model): \(TokenFormat.short($0.tokens))" }
         return (sources + models).joined(separator: "\n")
+    }
+}
+
+/// "Session: 77% left, resets 4:10 PM", with a bar that fills as the limit gets used.
+struct LimitBar: View {
+    let limit: PlanLimit
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(limit.name).font(.caption)
+                Spacer()
+                Text("\(Int(limit.leftPercent.rounded()))% left").font(.caption.monospacedDigit().weight(.medium))
+                    .foregroundStyle(color)
+                if let resets = limit.resetsAt {
+                    Text("resets \(resetText(resets))").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.18))
+                    Capsule().fill(color)
+                        .frame(width: geometry.size.width * CGFloat(min(100, max(0, limit.usedPercent)) / 100))
+                }
+            }
+            .frame(height: 5)
+        }
+        .help("\(Int(limit.usedPercent.rounded()))% used")
+    }
+
+    private var color: Color {
+        limit.usedPercent >= 90 ? .red : limit.usedPercent >= 70 ? .orange : .green
+    }
+
+    /// "4:10 PM" today, "Fri 9:00 AM" later.
+    private func resetText(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
+        return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 }
 

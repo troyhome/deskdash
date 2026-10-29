@@ -187,3 +187,34 @@ final class TokenUsageTests: XCTestCase {
         XCTAssertFalse(usage.first { $0.provider == .openai }!.hasData)
     }
 }
+
+final class PlanLimitTests: XCTestCase {
+    func testClaudeLimits() {
+        let json = """
+        {"five_hour":{"utilization":23.0,"resets_at":"2026-10-29T15:00:00.034642+00:00"},
+         "seven_day":{"utilization":61,"resets_at":"2026-11-01T09:00:00+00:00"},"seven_day_opus":null}
+        """
+        let limits = PlanLimits.parseClaude(Data(json.utf8))
+        XCTAssertEqual(limits.map(\.name), ["Session", "Week"])
+        XCTAssertEqual(limits.first?.leftPercent, 77)
+        XCTAssertNotNil(limits.first?.resetsAt)
+    }
+
+    func testCodexLimitsUseNewestLine() {
+        let future = Int(Date().timeIntervalSince1970) + 3600
+        let log = """
+        {"timestamp":"2026-10-29T10:00:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":5.0,"window_minutes":299,"resets_in_seconds":100}}}}
+        {"timestamp":"2026-10-29T11:00:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":40.0,"window_minutes":299,"resets_at":\(future)},"secondary":{"used_percent":22.0,"window_minutes":10079,"resets_at":\(future)}}}}
+        """
+        let limits = PlanLimits.parseCodex(Data(log.utf8))
+        XCTAssertEqual(limits.map(\.name), ["Session", "Week"])
+        XCTAssertEqual(limits.first?.usedPercent, 40)
+    }
+
+    func testClaudeTokenSkipsExpired() {
+        let expired = #"{"claudeAiOauth":{"accessToken":"abc","expiresAt":1000}}"#
+        let valid = #"{"claudeAiOauth":{"accessToken":"abc","expiresAt":99999999999999}}"#
+        XCTAssertNil(PlanLimits.claudeToken(fromCredentials: Data(expired.utf8)))
+        XCTAssertEqual(PlanLimits.claudeToken(fromCredentials: Data(valid.utf8)), "abc")
+    }
+}

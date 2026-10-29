@@ -25,14 +25,22 @@ public enum AccountUsage {
         }
     }
 
-    /// Hourly usage for the last 7 days.
+    /// Hourly usage for the last 7 days, daily before that back to 30 days.
     public static func fetch(_ provider: AIProvider, key: String, now: Date = Date(),
                              session: URLSession = .shared) async throws -> [UsageEvent] {
-        let since = Calendar.current.startOfDay(for: now.addingTimeInterval(-6 * 24 * 3600))
+        let weekStart = Calendar.current.startOfDay(for: now.addingTimeInterval(-6 * 24 * 3600))
+        let monthStart = Calendar.current.startOfDay(for: now.addingTimeInterval(-29 * 24 * 3600))
+        return try await fetch(provider, key: key, since: monthStart, until: weekStart, bucket: "1d", session: session)
+            + fetch(provider, key: key, since: weekStart, until: nil, bucket: "1h", session: session)
+    }
+
+    static func fetch(_ provider: AIProvider, key: String, since: Date, until: Date?, bucket: String,
+                      session: URLSession) async throws -> [UsageEvent] {
         var events: [UsageEvent] = []
         var page: String?
         for _ in 0..<10 {
-            guard let request = request(provider, key: key, since: since, page: page) else { return [] }
+            guard let request = request(provider, key: key, since: since, until: until, bucket: bucket, page: page)
+            else { return [] }
             let (data, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 401 || status == 403 { throw Failure.rejectedKey(provider) }
@@ -47,7 +55,9 @@ public enum AccountUsage {
         return events
     }
 
-    static func request(_ provider: AIProvider, key: String, since: Date, page: String?) -> URLRequest? {
+    static func request(_ provider: AIProvider, key: String, since: Date, until: Date?, bucket: String,
+                        page: String?) -> URLRequest? {
+        let limit = bucket == "1h" ? "168" : "31"
         var components: URLComponents
         var request: URLRequest
         switch provider {
@@ -55,10 +65,14 @@ public enum AccountUsage {
             components = URLComponents(string: "https://api.anthropic.com/v1/organizations/usage_report/messages")!
             components.queryItems = [
                 URLQueryItem(name: "starting_at", value: ISO8601DateFormatter().string(from: since)),
-                URLQueryItem(name: "bucket_width", value: "1h"),
-                URLQueryItem(name: "limit", value: "168"),
+                URLQueryItem(name: "bucket_width", value: bucket),
+                URLQueryItem(name: "limit", value: limit),
                 URLQueryItem(name: "group_by[]", value: "model"),
             ]
+            if let until {
+                components.queryItems?.append(URLQueryItem(name: "ending_at",
+                                                           value: ISO8601DateFormatter().string(from: until)))
+            }
             if let page { components.queryItems?.append(URLQueryItem(name: "page", value: page)) }
             guard let url = components.url else { return nil }
             request = URLRequest(url: url)
@@ -68,10 +82,14 @@ public enum AccountUsage {
             components = URLComponents(string: "https://api.openai.com/v1/organization/usage/completions")!
             components.queryItems = [
                 URLQueryItem(name: "start_time", value: String(Int(since.timeIntervalSince1970))),
-                URLQueryItem(name: "bucket_width", value: "1h"),
-                URLQueryItem(name: "limit", value: "168"),
+                URLQueryItem(name: "bucket_width", value: bucket),
+                URLQueryItem(name: "limit", value: limit),
                 URLQueryItem(name: "group_by", value: "model"),
             ]
+            if let until {
+                components.queryItems?.append(URLQueryItem(name: "end_time",
+                                                           value: String(Int(until.timeIntervalSince1970))))
+            }
             if let page { components.queryItems?.append(URLQueryItem(name: "page", value: page)) }
             guard let url = components.url else { return nil }
             request = URLRequest(url: url)

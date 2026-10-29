@@ -20,7 +20,7 @@ public final class LocalUsageLogs: @unchecked Sendable {
     }
 
     /// Every reply in the last `days` days. Slow the first time (reads every recent log), quick after.
-    public func events(days: Int = 8, now: Date = Date()) -> [UsageEvent] {
+    public func events(days: Int = 31, now: Date = Date()) -> [UsageEvent] {
         let since = now.addingTimeInterval(-Double(days) * 24 * 3600)
         var all: [UsageEvent] = []
         var seen = Set<String>()
