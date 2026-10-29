@@ -134,6 +134,40 @@ struct DriveCard: View {
     }
 }
 
+/// Online storage, like a drive card: bar plus used/free. Right-click to say which plan it is.
+struct CloudCard: View {
+    @Environment(DriveStore.self) private var store
+    let account: CloudAccount
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: "icloud").foregroundStyle(.secondary)
+                Text(account.name).font(.headline).lineLimit(1)
+                Spacer()
+                Text("\(Bytes.format(account.availableBytes)) free")
+                    .font(.caption)
+                    .foregroundStyle(account.usedFraction >= 0.9 ? Color.red : Color.secondary)
+            }
+            UsageBar(segments: [UsageSegment(id: "used", label: "Used", color: .cyan, bytes: account.usedBytes)],
+                     total: account.totalBytes, height: 9)
+            Text("\(Bytes.format(account.usedBytes)) of \(Bytes.format(account.totalBytes)) used"
+                 + (account.totalIsGuess ? " (plan guessed)" : ""))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+        .help("Your iCloud storage. Right-click to set your plan size if it's wrong.")
+        .contextMenu {
+            ForEach(ICloudStorage.planSizes, id: \.self) { size in
+                Button("\(Bytes.format(size)) plan") { store.setICloudPlan(size) }
+            }
+            Divider()
+            Button("Guess my plan") { store.setICloudPlan(nil) }
+        }
+    }
+}
+
 /// The frosted see-through background of the desktop widget.
 struct DesktopBlur: NSViewRepresentable {
     var cornerRadius: CGFloat

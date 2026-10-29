@@ -8,6 +8,8 @@ final class DriveStore {
     static let shared = DriveStore()
 
     private(set) var drives: [Drive] = []
+    /// Online storage (iCloud), checked every few minutes.
+    private(set) var cloud: [CloudAccount] = []
     private(set) var scans: [String: ScanResult] = [:]
     /// Bytes counted so far, for drives being scanned right now.
     private(set) var scanProgress: [String: Int64] = [:]
@@ -15,11 +17,17 @@ final class DriveStore {
     @ObservationIgnored private var scanTasks: [String: Task<ScanResult, Never>] = [:]
     @ObservationIgnored private var timer: Timer?
 
+    @ObservationIgnored private var cloudTimer: Timer?
+
     private init() {
         refresh()
+        refreshCloud()
         // Free space changes all the time; drives come and go.
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in
             Task { @MainActor in DriveStore.shared.refresh() }
+        }
+        cloudTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
+            Task { @MainActor in DriveStore.shared.refreshCloud() }
         }
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
@@ -32,6 +40,20 @@ final class DriveStore {
 
     func refresh() {
         drives = DriveList.current()
+    }
+
+    func refreshCloud() {
+        let plan = UserDefaults.standard.object(forKey: Prefs.iCloudPlan) as? Int64
+        Task {
+            let account = await Task.detached(priority: .utility) { ICloudStorage.current(chosenPlan: plan) }.value
+            cloud = account.map { [$0] } ?? []
+        }
+    }
+
+    /// The iCloud plan size picked by the user (nil = guess it).
+    func setICloudPlan(_ bytes: Int64?) {
+        UserDefaults.standard.set(bytes, forKey: Prefs.iCloudPlan)
+        refreshCloud()
     }
 
     func drive(id: String?) -> Drive? {

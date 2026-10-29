@@ -218,3 +218,18 @@ final class PlanLimitTests: XCTestCase {
         XCTAssertEqual(PlanLimits.claudeToken(fromCredentials: Data(valid.utf8)), "abc")
     }
 }
+
+final class CloudStorageTests: XCTestCase {
+    func testICloudQuota() throws {
+        let remaining = try XCTUnwrap(ICloudStorage.remainingBytes(
+            fromQuotaOutput: "1151605086740 bytes of quota remaining in personal account\n"))
+        XCTAssertEqual(remaining, 1_151_605_086_740)
+        let guessed = ICloudStorage.account(remaining: remaining, chosenPlan: nil)
+        XCTAssertEqual(guessed.totalBytes, 2_000 * Bytes.gigabyte)
+        XCTAssertTrue(guessed.totalIsGuess)
+        XCTAssertEqual(guessed.usedBytes, 2_000 * Bytes.gigabyte - remaining)
+        XCTAssertEqual(ICloudStorage.account(remaining: remaining, chosenPlan: 6_000 * Bytes.gigabyte).totalBytes,
+                       6_000 * Bytes.gigabyte)
+        XCTAssertNil(ICloudStorage.remainingBytes(fromQuotaOutput: "not signed in"))
+    }
+}

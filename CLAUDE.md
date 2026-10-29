@@ -8,6 +8,10 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
 - New to programming and Terminal. Explain briefly, in plain language, no jargon. No emojis.
 - UI rule: no looping/indeterminate animations (spinners, sliding progress bars). Show progress as text.
 
+- iCloud storage card under the drives (`CloudStorage.swift`): space left comes from `brctl quota`; macOS doesn't
+  give the plan size, so it's the smallest iCloud+ plan that fits (right-click the card to pick the real one).
+  Google Drive isn't on this Mac (would need Google Drive for desktop or a Google sign-in).
+
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).

@@ -29,4 +29,6 @@ enum Prefs {
     static let showDesktopWidget = "showDesktopWidget"
     static let showDrives = "showDrives"
     static let showAI = "showAI"
+    /// The iCloud plan size in bytes, when picked by hand (DeskDash guesses it otherwise).
+    static let iCloudPlan = "iCloudPlanBytes"
 }

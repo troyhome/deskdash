@@ -35,6 +35,9 @@ struct DashboardView: View {
                 if store.drives.isEmpty {
                     Text("No drives found.").foregroundStyle(.secondary)
                 }
+                ForEach(store.cloud) { account in
+                    CloudCard(account: account)
+                }
             }
             Divider()
             SectionHeader(title: "AI tokens", systemImage: "sparkles", isOpen: $showAI, summary: aiSummary) {
