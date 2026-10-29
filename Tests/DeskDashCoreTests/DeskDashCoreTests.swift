@@ -102,3 +102,77 @@ final class DriveListTests: XCTestCase {
         XCTAssertEqual(merged.map(\.name), ["crusher (Movies Shows, music, PHOTOS)", "Backup"])
     }
 }
+
+final class TokenUsageTests: XCTestCase {
+    func testClaudeCodeKeepsLastCopyOfEachReply() {
+        let log = """
+        {"type":"user","message":{"role":"user","content":"hi"},"timestamp":"2026-10-29T10:00:00.000Z"}
+        {"type":"assistant","requestId":"req_1","timestamp":"2026-10-29T10:00:01.000Z","message":{"id":"msg_1","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":1,"cache_read_input_tokens":100,"cache_creation_input_tokens":5}}}
+        {"type":"assistant","requestId":"req_1","timestamp":"2026-10-29T10:00:02.000Z","message":{"id":"msg_1","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":50,"cache_read_input_tokens":100,"cache_creation_input_tokens":5}}}
+        {"type":"assistant","requestId":"req_2","timestamp":"2026-10-29T10:01:00Z","message":{"id":"msg_2","model":"<synthetic>","usage":{"input_tokens":0,"output_tokens":0}}}
+        """
+        let events = LocalUsageLogs.claudeCodeEvents(in: Data(log.utf8))
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.tokens, TokenCount(input: 10, output: 50, cacheRead: 100, cacheWrite: 5))
+        XCTAssertEqual(events.first?.model, "claude-opus-5-5")
+    }
+
+    func testCodexSkipsRepeatedCounts() {
+        let log = """
+        {"timestamp":"2026-10-29T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5-codex"}}
+        {"timestamp":"2026-10-29T10:00:05Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":120},"last_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"total_tokens":120}}}}
+        {"timestamp":"2026-10-29T10:00:06Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":120},"last_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"total_tokens":120}}}}
+        {"timestamp":"2026-10-29T10:00:07Z","type":"event_msg","payload":{"type":"token_count","info":null}}
+        """
+        let events = LocalUsageLogs.codexEvents(in: Data(log.utf8))
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.tokens, TokenCount(input: 60, output: 20, cacheRead: 40))
+        XCTAssertEqual(events.first?.model, "gpt-5-codex")
+    }
+
+    func testGeminiChat() {
+        let chat = """
+        {"sessionId":"s","messages":[{"type":"user","timestamp":"2026-10-29T10:00:00Z","content":"hi"},
+        {"type":"gemini","timestamp":"2026-10-29T10:00:03.120Z","model":"gemini-2.5-pro","tokens":{"input":200,"output":30,"cached":50,"thoughts":10,"tool":0,"total":240}}]}
+        """
+        let events = LocalUsageLogs.geminiEvents(in: Data(chat.utf8))
+        XCTAssertEqual(events.first?.tokens, TokenCount(input: 150, output: 40, cacheRead: 50))
+    }
+
+    func testAnthropicReport() {
+        let report = """
+        {"data":[{"starting_at":"2026-10-29T09:00:00Z","ending_at":"2026-10-29T10:00:00Z","results":[
+        {"model":"claude-opus-5-5","uncached_input_tokens":1500,"cache_read_input_tokens":200,"output_tokens":500,
+         "cache_creation":{"ephemeral_5m_input_tokens":10,"ephemeral_1h_input_tokens":5}}]}],"has_more":true,"next_page":"page_x"}
+        """
+        let parsed = AccountUsage.parse(.anthropic, Data(report.utf8))
+        XCTAssertEqual(parsed?.nextPage, "page_x")
+        XCTAssertEqual(parsed?.events.first?.tokens, TokenCount(input: 1500, output: 500, cacheRead: 200, cacheWrite: 15))
+    }
+
+    func testOpenAIReport() {
+        let report = """
+        {"object":"page","data":[{"object":"bucket","start_time":1793264400,"end_time":1793268000,"results":[
+        {"object":"organization.usage.completions.result","input_tokens":1000,"input_cached_tokens":400,"output_tokens":90,"model":"gpt-5"}]}],
+        "has_more":false,"next_page":null}
+        """
+        let parsed = AccountUsage.parse(.openai, Data(report.utf8))
+        XCTAssertNil(parsed?.nextPage)
+        XCTAssertEqual(parsed?.events.first?.tokens, TokenCount(input: 600, output: 90, cacheRead: 400))
+        XCTAssertEqual(parsed?.events.first?.date, Date(timeIntervalSince1970: 1793264400))
+    }
+
+    func testSummaryBuckets() {
+        let now = Date()
+        func event(_ ago: TimeInterval, _ total: Int64, _ source: UsageSource = .claudeCode) -> UsageEvent {
+            UsageEvent(provider: .anthropic, source: source, model: "claude-opus-5-5", date: now.addingTimeInterval(-ago),
+                       tokens: TokenCount(output: total))
+        }
+        let usage = UsageSummary.summarize([event(60, 100), event(2 * 3600, 50), event(10 * 24 * 3600, 999)], now: now)
+        let anthropic = usage.first { $0.provider == .anthropic }!
+        XCTAssertEqual(anthropic.lastHour.total, 100)
+        XCTAssertEqual(anthropic.hourly.last, 100)
+        XCTAssertEqual(anthropic.hourly.reduce(0, +), 150)
+        XCTAssertFalse(usage.first { $0.provider == .openai }!.hasData)
+    }
+}

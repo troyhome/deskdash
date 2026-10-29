@@ -134,32 +134,6 @@ struct DriveCard: View {
     }
 }
 
-/// Where AI token usage (Anthropic, OpenAI, Google) will go.
-struct AITokensPlaceholder: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("AI token usage", systemImage: "sparkles").font(.headline)
-            Text("Coming next: live usage from Anthropic, OpenAI and Google.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) {
-                ForEach(["Anthropic", "OpenAI", "Google"], id: \.self) { provider in
-                    Text(provider)
-                        .font(.caption2)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.4)))
-                }
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4])))
-    }
-}
-
 /// The frosted see-through background of the desktop widget.
 struct DesktopBlur: NSViewRepresentable {
     var cornerRadius: CGFloat

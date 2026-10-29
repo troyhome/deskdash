@@ -1,8 +1,8 @@
 # DeskDash - project brief for Claude Code
 
 DeskDash is a native macOS menu bar app plus desktop widget (Swift / SwiftUI, macOS 14+), inspired by Vorssaint.
-First feature: disk usage per drive with category drill-down and suggestions. Next: live AI token usage
-(Anthropic, OpenAI, Google); the placeholder is `AITokensPlaceholder` in `Sources/DeskDash/Components.swift`.
+First feature: disk usage per drive with category drill-down and suggestions. Second: live AI token usage
+(Anthropic, OpenAI, Google); token usage lives in `LocalUsageLogs` / `AccountUsage` (core) and `TokenStore` / `TokenViews.swift` (app). Admin keys are kept in the Keychain (`Keychain.swift`).
 
 ## About the user
 - New to programming and Terminal. Explain briefly, in plain language, no jargon. No emojis.

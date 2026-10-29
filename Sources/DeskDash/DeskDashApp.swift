@@ -9,6 +9,7 @@ struct DeskDashApp: App {
         MenuBarExtra("DeskDash", systemImage: "internaldrive") {
             MenuBarView()
                 .environment(DriveStore.shared)
+                .environment(TokenStore.shared)
         }
         .menuBarExtraStyle(.window)
     }

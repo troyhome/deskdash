@@ -28,7 +28,7 @@ struct DashboardView: View {
                 Text("No drives found.").foregroundStyle(.secondary)
             }
             Divider()
-            AITokensPlaceholder()
+            AITokensCard()
         }
     }
 }
