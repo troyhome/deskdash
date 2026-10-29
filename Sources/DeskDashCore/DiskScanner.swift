@@ -86,6 +86,11 @@ public enum DiskScanner {
 
         for root in roots {
             let rootPath = root.standardizedFileURL.path
+            // Files come back with links resolved (/var -> /private/var), so match folders against that path.
+            let walkedPath = realpath(rootPath, nil).map { pointer in
+                defer { free(pointer) }
+                return String(cString: pointer)
+            } ?? rootPath
             var unreadable = 0
             guard let walker = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys, options: [],
                                                               errorHandler: { _, _ in unreadable += 1; return true })
@@ -109,7 +114,8 @@ public enum DiskScanner {
                 let category = Classifier.category(forPath: url.path)
                 result.fileCount += 1
                 result.bytesByCategory[category, default: 0] += bytes
-                if let folder = topFolder(of: url.path, under: rootPath) {
+                if let folder = topFolder(of: url.path, under: rootPath)
+                    ?? topFolder(of: url.path, under: walkedPath).map({ rootPath + $0.dropFirst(walkedPath.count) }) {
                     result.bytesByFolder[folder, default: 0] += bytes
                 }
                 if bytes >= smallestListed {

@@ -28,8 +28,13 @@ make_app() {
     cp "$ROOT/Resources/Info.plist" "$app/Contents/Info.plist"
     # Sign with Troy's Apple Development certificate when it's there (needed later for saving API keys in the
     # Keychain); otherwise a local-only signature so macOS will open it.
-    if security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Development"; then
-        codesign --force --sign "Apple Development" "$app"
+    # The certificate is picked by its fingerprint, because the same one can be in the Keychain twice
+    # (an old revoked copy next to the current one). Revoked ones are skipped: macOS won't open an app signed with them.
+    local identity
+    identity="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/Apple Development/ && !/REVOKED/ {print $2; exit}')"
+    if [[ -n "$identity" ]]; then
+        codesign --force --sign "$identity" "$app"
     else
         codesign --force --sign - "$app"
     fi
