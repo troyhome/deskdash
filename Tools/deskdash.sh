@@ -75,7 +75,12 @@ case "${1:-build}" in
         ;;
     install)
         make_app release "$OUT/Release/DeskDash.app"
-        notarize_app "$OUT/Release/DeskDash.app"
+        # The shared script signs and notarizes all of Troy's apps; this script's own copy is the fallback.
+        if [[ -x "$HOME/bin/sign-and-notarize" ]]; then
+            "$HOME/bin/sign-and-notarize" "$OUT/Release/DeskDash.app"
+        else
+            notarize_app "$OUT/Release/DeskDash.app"
+        fi
         pkill -x DeskDash 2>/dev/null || true
         rm -rf /Applications/DeskDash.app
         cp -R "$OUT/Release/DeskDash.app" /Applications/DeskDash.app
