@@ -8,12 +8,18 @@ struct DashboardView: View {
     @Environment(TokenStore.self) private var tokens
     @AppStorage(Prefs.showDrives) private var showDrives = true
     @AppStorage(Prefs.showAI) private var showAI = true
+    @AppStorage(Prefs.compact) private var compact = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: compact ? 10 : 12) {
             HStack {
                 Text("DeskDash").font(.title3.bold())
                 Spacer()
+                Button { compact.toggle() } label: {
+                    Image(systemName: compact ? "rectangle.expand.vertical" : "chart.pie")
+                }
+                    .buttonStyle(.borderless)
+                    .help(compact ? "Show bars (bigger)" : "Compact: show rings (smaller)")
                 Button {
                     store.refresh()
                     tokens.refresh()
@@ -26,7 +32,9 @@ struct DashboardView: View {
                     .buttonStyle(.borderless)
                     .help("Add Google Drive")
             }
-            if showDrives {
+            if showDrives && compact {
+                CompactDrives()
+            } else if showDrives {
                 ForEach(store.drives) { drive in
                     Button {
                         DetailsWindowController.shared.show(driveID: drive.id)
@@ -50,7 +58,7 @@ struct DashboardView: View {
                     .help("Connect API accounts")
             }
             if showAI {
-                AITokensCard()
+                if compact { CompactTokens() } else { AITokensCard() }
             }
         }
     }
@@ -121,10 +129,12 @@ struct SectionHeader<Accessory: View>: View {
 }
 
 struct DesktopWidgetView: View {
+    @AppStorage(Prefs.compact) private var compact = false
+
     var body: some View {
         DashboardView()
-            .padding(16)
-            .frame(width: 360)
+            .padding(compact ? 12 : 16)
+            .frame(width: compact ? 250 : 360)
             .background(DesktopBlur(cornerRadius: 18))
             .clipShape(RoundedRectangle(cornerRadius: 18))
     }
@@ -132,6 +142,7 @@ struct DesktopWidgetView: View {
 
 struct MenuBarView: View {
     @AppStorage(Prefs.showDesktopWidget) private var showWidget = true
+    @AppStorage(Prefs.compact) private var compact = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -141,6 +152,7 @@ struct MenuBarView: View {
                 .onChange(of: showWidget) { _, visible in
                     DesktopWidgetController.shared.setVisible(visible)
                 }
+            Toggle("Compact (rings instead of bars)", isOn: $compact)
             HStack {
                 Button("Open DeskDash") { DetailsWindowController.shared.show() }
                 Spacer()
@@ -148,6 +160,6 @@ struct MenuBarView: View {
             }
         }
         .padding(16)
-        .frame(width: 360)
+        .frame(width: compact ? 280 : 360)
     }
 }

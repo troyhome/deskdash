@@ -18,6 +18,9 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
 - Claude plan limits use Claude Code's sign-in, which expires after a few hours; when it has, `TokenStore` runs
   `claude auth status` (renews it, no model call, no tokens), at most every 10 minutes.
 
+- Compact mode (`CompactViews.swift`, pie button in the widget header or the menu bar toggle): drives and online storage
+  as rings in a grid, plan limits as small rings with "% left"; widget 250 wide instead of 360.
+
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).

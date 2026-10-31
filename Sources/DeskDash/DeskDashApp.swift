@@ -29,6 +29,8 @@ enum Prefs {
     static let showDesktopWidget = "showDesktopWidget"
     static let showDrives = "showDrives"
     static let showAI = "showAI"
+    /// Rings instead of bars, for a smaller widget.
+    static let compact = "compactMode"
     /// The iCloud plan size in bytes, when picked by hand (DeskDash guesses it otherwise).
     static let iCloudPlan = "iCloudPlanBytes"
 }
