@@ -157,13 +157,18 @@ struct CloudCard: View {
                 .foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
-        .help("Your iCloud storage. Right-click to set your plan size if it's wrong.")
+        .help(account.id == "icloud" ? "Your iCloud storage. Right-click to set your plan size if it's wrong."
+              : "Your Google storage (Drive, Gmail and Photos together).")
         .contextMenu {
-            ForEach(ICloudStorage.planSizes, id: \.self) { size in
-                Button("\(Bytes.format(size)) plan") { store.setICloudPlan(size) }
+            if account.id == "icloud" {
+                ForEach(ICloudStorage.planSizes, id: \.self) { size in
+                    Button("\(Bytes.format(size)) plan") { store.setICloudPlan(size) }
+                }
+                Divider()
+                Button("Guess my plan") { store.setICloudPlan(nil) }
+            } else {
+                Button("Google Drive Settings…") { GoogleDriveWindowController.shared.show() }
             }
-            Divider()
-            Button("Guess my plan") { store.setICloudPlan(nil) }
         }
     }
 }

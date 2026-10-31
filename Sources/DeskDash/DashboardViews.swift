@@ -21,7 +21,11 @@ struct DashboardView: View {
                     .buttonStyle(.borderless)
                     .help("Refresh")
             }
-            SectionHeader(title: "Drives", systemImage: "internaldrive", isOpen: $showDrives, summary: drivesSummary)
+            SectionHeader(title: "Drives", systemImage: "internaldrive", isOpen: $showDrives, summary: drivesSummary) {
+                Button { GoogleDriveWindowController.shared.show() } label: { Image(systemName: "plus.circle") }
+                    .buttonStyle(.borderless)
+                    .help("Add Google Drive")
+            }
             if showDrives {
                 ForEach(store.drives) { drive in
                     Button {

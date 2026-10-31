@@ -8,7 +8,7 @@ final class DriveStore {
     static let shared = DriveStore()
 
     private(set) var drives: [Drive] = []
-    /// Online storage (iCloud), checked every few minutes.
+    /// Online storage (iCloud, and Google Drive once connected), checked every few minutes.
     private(set) var cloud: [CloudAccount] = []
     private(set) var scans: [String: ScanResult] = [:]
     /// Bytes counted so far, for drives being scanned right now.
@@ -45,8 +45,9 @@ final class DriveStore {
     func refreshCloud() {
         let plan = UserDefaults.standard.object(forKey: Prefs.iCloudPlan) as? Int64
         Task {
-            let account = await Task.detached(priority: .utility) { ICloudStorage.current(chosenPlan: plan) }.value
-            cloud = account.map { [$0] } ?? []
+            let iCloud = await Task.detached(priority: .utility) { ICloudStorage.current(chosenPlan: plan) }.value
+            let google = await GoogleDriveConnection.shared.storage()
+            cloud = [iCloud, google].compactMap { $0 }
         }
     }
 

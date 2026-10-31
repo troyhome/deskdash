@@ -233,3 +233,37 @@ final class CloudStorageTests: XCTestCase {
         XCTAssertNil(ICloudStorage.remainingBytes(fromQuotaOutput: "not signed in"))
     }
 }
+
+final class GoogleDriveTests: XCTestCase {
+    func testClientFile() {
+        let file = #"{"installed":{"client_id":"123.apps.googleusercontent.com","client_secret":"abc","redirect_uris":["http://localhost"]}}"#
+        XCTAssertEqual(GoogleClient.parse(Data(file.utf8)), GoogleClient(id: "123.apps.googleusercontent.com", secret: "abc"))
+        XCTAssertNil(GoogleClient.parse(Data(#"{"other":1}"#.utf8)))
+    }
+
+    func testSignInPieces() throws {
+        // The example from the PKCE standard (RFC 7636).
+        XCTAssertEqual(GoogleAuth.challenge(for: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+                       "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
+        let url = GoogleAuth.signInURL(client: GoogleClient(id: "id1", secret: "s"), redirect: "http://127.0.0.1:5000",
+                                       verifier: "v", state: "st").absoluteString
+        XCTAssertTrue(url.contains("code_challenge_method=S256"))
+        XCTAssertTrue(url.contains("access_type=offline"))
+        let answer = GoogleAuth.callback(fromRequestLine: "GET /?state=st&code=4/abc&scope=x HTTP/1.1")
+        XCTAssertEqual(answer.code, "4/abc")
+        XCTAssertEqual(answer.state, "st")
+        XCTAssertNil(GoogleAuth.callback(fromRequestLine: "GET /favicon.ico HTTP/1.1").code)
+    }
+
+    func testTokensAndQuota() throws {
+        let tokens = try GoogleAuth.parseTokens(Data(#"{"access_token":"a","expires_in":3599,"refresh_token":"r"}"#.utf8), status: 200)
+        XCTAssertEqual(tokens.refreshToken, "r")
+        XCTAssertThrowsError(try GoogleAuth.parseTokens(Data(#"{"error":"invalid_grant"}"#.utf8), status: 400))
+
+        let about = #"{"user":{"emailAddress":"troy@example.com"},"storageQuota":{"limit":"2000000000000","usage":"500000000000"}}"#
+        let account = try XCTUnwrap(GoogleDriveStorage.parse(Data(about.utf8)))
+        XCTAssertEqual(account.name, "Google Drive (troy@example.com)")
+        XCTAssertEqual(account.availableBytes, 1_500_000_000_000)
+        XCTAssertFalse(account.totalIsGuess)
+    }
+}

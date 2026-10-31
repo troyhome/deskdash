@@ -10,7 +10,10 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
 
 - iCloud storage card under the drives (`CloudStorage.swift`): space left comes from `brctl quota`; macOS doesn't
   give the plan size, so it's the smallest iCloud+ plan that fits (right-click the card to pick the real one).
-  Google Drive isn't on this Mac (would need Google Drive for desktop or a Google sign-in).
+  Google Drive: DeskDash signs in to Google itself (`GoogleDrive.swift`, `GoogleDriveConnection.swift`): Troy's own
+  "Desktop app" client from console.cloud.google.com (project DeskDash, published "In production" so sign-in lasts),
+  client file picked up from ~/Downloads/client_secret_*.json, browser sign-in back to 127.0.0.1 with PKCE, scope
+  drive.file, `drive/v3/about` storageQuota. Client and refresh token live in the Keychain. Setup window: + next to Drives.
 
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
