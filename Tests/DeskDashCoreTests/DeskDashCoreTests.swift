@@ -262,7 +262,7 @@ final class GoogleDriveTests: XCTestCase {
 
         let about = #"{"user":{"emailAddress":"troy@example.com"},"storageQuota":{"limit":"2000000000000","usage":"500000000000"}}"#
         let account = try XCTUnwrap(GoogleDriveStorage.parse(Data(about.utf8)))
-        XCTAssertEqual(account.name, "Google Drive (troy@example.com)")
+        XCTAssertEqual(account.name, "Google Drive")
         XCTAssertEqual(account.availableBytes, 1_500_000_000_000)
         XCTAssertFalse(account.totalIsGuess)
     }

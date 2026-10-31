@@ -123,7 +123,7 @@ public enum GoogleError: LocalizedError, Equatable {
 
 /// How much of the Google account's storage (Drive, Gmail and Photos together) is used.
 public enum GoogleDriveStorage {
-    static let aboutURL = URL(string: "https://www.googleapis.com/drive/v3/about?fields=storageQuota,user(emailAddress)")!
+    static let aboutURL = URL(string: "https://www.googleapis.com/drive/v3/about?fields=storageQuota")!
 
     public static func fetch(accessToken: String) async throws -> CloudAccount {
         var request = URLRequest(url: aboutURL)
@@ -144,8 +144,7 @@ public enum GoogleDriveStorage {
               let quota = json["storageQuota"] as? [String: Any],
               let usage = (quota["usage"] as? String).flatMap({ Int64($0) }) else { return nil }
         let limit = (quota["limit"] as? String).flatMap { Int64($0) } ?? usage
-        let email = (json["user"] as? [String: Any])?["emailAddress"] as? String
-        return CloudAccount(id: "google", name: email.map { "Google Drive (\($0))" } ?? "Google Drive",
+        return CloudAccount(id: "google", name: "Google Drive",
                             totalBytes: limit, availableBytes: max(0, limit - usage), totalIsGuess: false)
     }
 }
