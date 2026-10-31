@@ -16,6 +16,15 @@ final class TokenStore {
 
     @ObservationIgnored private let logs = LocalUsageLogs()
     @ObservationIgnored private var localEvents: [UsageEvent] = []
+    /// Use on Troy's other Macs, from their files in iCloud Drive.
+    @ObservationIgnored private var otherMacEvents: [UsageEvent] = []
+    @ObservationIgnored private var lastShare: Date = .distantPast
+    /// The other Macs whose use is added in (empty: the counts are this Mac's only).
+    private(set) var otherMacs: [String] = []
+
+    /// How far the token counts reach: "on this Mac", or "on all your Macs" once another Mac shares its use.
+    /// (Never the Claude app or website: those keep no counts on the Mac.)
+    var countsScope: String { otherMacs.isEmpty ? "on this Mac" : "on all your Macs" }
     @ObservationIgnored private var accountEvents: [AIProvider: [UsageEvent]] = [:]
     @ObservationIgnored private var lastAccountFetch: Date = .distantPast
     @ObservationIgnored private var lastClaudeLimitsFetch: Date = .distantPast
@@ -83,6 +92,45 @@ final class TokenStore {
         }
     }
 
+    /// "DeskDash Usage" in iCloud Drive: one file per Mac. Nil when iCloud Drive is off.
+    private nonisolated static var sharedFolder: URL? {
+        let iCloud = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+        guard FileManager.default.fileExists(atPath: iCloud.path) else { return nil }
+        return iCloud.appendingPathComponent("DeskDash Usage")
+    }
+
+    private nonisolated static let macName = Host.current().localizedName ?? "Mac"
+
+    /// Writes this Mac's use (when `write`) and reads the other Macs' (files changed in the last month).
+    private nonisolated static func shareWithOtherMacs(_ local: [UsageEvent],
+                                                       write: Bool) -> (events: [UsageEvent], macs: [String]) {
+        guard let folder = sharedFolder else { return ([], []) }
+        let manager = FileManager.default
+        let mine = "usage-" + macName.replacingOccurrences(of: "/", with: "-") + ".json"
+        if write {
+            try? manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            let file = SharedUsageFile(mac: macName, events: local.filter { $0.source != .accountAPI })
+            try? file.encoded().write(to: folder.appendingPathComponent(mine), options: .atomic)
+        }
+        var events: [UsageEvent] = []
+        var macs: [String] = []
+        for url in (try? manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] {
+            let name = url.lastPathComponent
+            // iCloud may keep only a placeholder ("….json.icloud") until the file is downloaded.
+            if name.hasSuffix(".icloud") {
+                try? manager.startDownloadingUbiquitousItem(at: url)
+                continue
+            }
+            guard name.hasPrefix("usage-"), name.hasSuffix(".json"), name != mine,
+                  let data = try? Data(contentsOf: url), let file = SharedUsageFile.decode(data),
+                  file.updated > Date().addingTimeInterval(-31 * 24 * 3600) else { continue }
+            events += file.events
+            macs.append(file.mac)
+        }
+        return (events, macs.sorted())
+    }
+
     func refresh() {
         guard !refreshing else { return }
         refreshing = true
@@ -106,6 +154,11 @@ final class TokenStore {
         Task {
             let local = await Task.detached(priority: .utility) { logs.events() }.value
             localEvents = local
+            let write = Date().timeIntervalSince(lastShare) > 120
+            if write { lastShare = Date() }
+            let shared = await Task.detached(priority: .utility) { Self.shareWithOtherMacs(local, write: write) }.value
+            otherMacEvents = shared.events
+            otherMacs = shared.macs
             limits[.openai] = await Task.detached(priority: .utility) { PlanLimits.latestCodex() }.value
             if let claudeToken {
                 do {
@@ -124,7 +177,7 @@ final class TokenStore {
                 }
             }
             for provider in AIProvider.allCases where !hasKey(provider) { accountEvents[provider] = nil }
-            usage = UsageSummary.summarize(localEvents + accountEvents.values.flatMap { $0 })
+            usage = UsageSummary.summarize(localEvents + otherMacEvents + accountEvents.values.flatMap { $0 })
             updatedAt = Date()
             refreshing = false
         }

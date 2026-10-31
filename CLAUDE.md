@@ -21,6 +21,11 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
 - Compact mode (`CompactViews.swift`, pie button in the widget header or the menu bar toggle): drives and online storage
   as rings in a grid, plan limits as small rings with "% left"; widget 250 wide instead of 360.
 
+- AI section: each provider's plan limits (whole account) come first; token counts are smaller and say how far they
+  reach. Counts are shared between Troy's Macs through iCloud Drive > "DeskDash Usage" (one `usage-<Mac>.json` per
+  Mac, hourly buckets, `SharedUsage.swift`), so with both Macs on they read "on all your Macs". The Claude app and
+  website keep no counts on the Mac, so they're never in the counts (they are in the limits).
+
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).

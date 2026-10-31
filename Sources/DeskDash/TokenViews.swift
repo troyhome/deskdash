@@ -36,6 +36,7 @@ struct AITokensCard: View {
 }
 
 struct ProviderRow: View {
+    @Environment(TokenStore.self) private var tokens
     let usage: ProviderUsage
     let limits: [PlanLimit]
     let problem: String?
@@ -46,20 +47,22 @@ struct ProviderRow: View {
                 Circle().fill(usage.provider.color).frame(width: 11, height: 11)
                 Text(usage.provider.title).font(.title3.weight(.semibold))
                 Spacer()
-                if usage.hasData {
-                    Text(TokenFormat.short(usage.today.total)).font(.title3.monospacedDigit().weight(.semibold))
-                    Text("today").font(.callout).foregroundStyle(.secondary)
-                } else if limits.isEmpty {
+                if !usage.hasData && limits.isEmpty {
                     Text("No usage found").font(.callout).foregroundStyle(.secondary)
                 }
             }
+            // What's left of the plan comes first: it's for the whole account (every Mac, the app, the website).
             ForEach(limits) { limit in
                 LimitBar(limit: limit)
             }
             if usage.hasData {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(TokenFormat.short(usage.today.total)).font(.callout.monospacedDigit().weight(.semibold))
+                    Text("tokens today \(tokens.countsScope)").font(.caption).foregroundStyle(.secondary)
+                }
                 HourlyBars(values: usage.hourly, color: usage.provider.color)
                 Text(detail)
-                    .font(.callout)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)

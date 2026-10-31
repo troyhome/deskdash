@@ -101,7 +101,8 @@ struct CompactTokens: View {
                     Circle().fill(usage.provider.color).frame(width: 9, height: 9)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(usage.provider.title).font(.callout.weight(.semibold))
-                        Text("\(TokenFormat.short(usage.today.total)) today")
+                        Text("\(TokenFormat.short(usage.today.total)) today" + (tokens.otherMacs.isEmpty ? "" : ", all Macs"))
+                            .help("Tokens today \(tokens.countsScope)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }

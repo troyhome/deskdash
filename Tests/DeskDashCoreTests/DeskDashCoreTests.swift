@@ -267,3 +267,24 @@ final class GoogleDriveTests: XCTestCase {
         XCTAssertFalse(account.totalIsGuess)
     }
 }
+
+final class SharedUsageTests: XCTestCase {
+    func testHourlyBucketsRoundTrip() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let events = [
+            UsageEvent(provider: .anthropic, source: .claudeCode, model: "m", date: start,
+                       tokens: TokenCount(input: 1, output: 2, cacheRead: 3)),
+            UsageEvent(provider: .anthropic, source: .claudeCode, model: "m", date: start.addingTimeInterval(60),
+                       tokens: TokenCount(input: 10, output: 20, cacheRead: 30)),
+            UsageEvent(provider: .openai, source: .codex, model: "g", date: start.addingTimeInterval(7200),
+                       tokens: TokenCount(output: 5)),
+        ]
+        let file = SharedUsageFile(mac: "Daily", events: events)
+        let decoded = try XCTUnwrap(SharedUsageFile.decode(try file.encoded()))
+        XCTAssertEqual(decoded.mac, "Daily")
+        XCTAssertEqual(decoded.events.count, 2)
+        let claude = try XCTUnwrap(decoded.events.first { $0.provider == .anthropic })
+        XCTAssertEqual(claude.tokens, TokenCount(input: 11, output: 22, cacheRead: 33))
+        XCTAssertEqual(claude.date, start.addingTimeInterval(60))
+    }
+}
