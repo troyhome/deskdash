@@ -15,6 +15,9 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
   client file picked up from ~/Downloads/client_secret_*.json, browser sign-in back to 127.0.0.1 with PKCE, scope
   drive.file, `drive/v3/about` storageQuota. Client and refresh token live in the Keychain. Setup window: + next to Drives.
 
+- Claude plan limits use Claude Code's sign-in, which expires after a few hours; when it has, `TokenStore` runs
+  `claude auth status` (renews it, no model call, no tokens), at most every 10 minutes.
+
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).

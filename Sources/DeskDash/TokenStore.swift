@@ -22,6 +22,7 @@ final class TokenStore {
     /// Read from the Keychain once and kept, so macOS doesn't ask over and over; read again when it stops working.
     @ObservationIgnored private var claudeToken: String?
     @ObservationIgnored private var refreshing = false
+    @ObservationIgnored private var lastClaudeRenewal: Date = .distantPast
 
     private init() {
         refresh()
@@ -51,6 +52,37 @@ final class TokenStore {
         return saved.flatMap { PlanLimits.claudeToken(fromCredentials: $0) }
     }
 
+    /// Where the Claude Code program is, if it's on this Mac.
+    private static func claudeProgram() -> URL? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return ["\(home)/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+            .map { URL(fileURLWithPath: $0) }
+    }
+
+    /// Claude Code's sign-in only lasts a few hours and renews itself when Claude Code runs. Asking Claude Code for
+    /// its sign-in status ("claude auth status") renews it too, without asking Claude anything (no tokens used).
+    /// At most every 10 minutes; the limits are read again right after.
+    private func renewClaudeSignIn() {
+        guard Date().timeIntervalSince(lastClaudeRenewal) > 600, let claude = Self.claudeProgram() else { return }
+        lastClaudeRenewal = Date()
+        Task.detached(priority: .utility) {
+            let process = Process()
+            process.executableURL = claude
+            process.arguments = ["auth", "status"]
+            process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            guard (try? process.run()) != nil else { return }
+            process.waitUntilExit()
+            await MainActor.run {
+                TokenStore.shared.claudeToken = nil
+                TokenStore.shared.lastClaudeLimitsFetch = .distantPast
+                TokenStore.shared.refresh()
+            }
+        }
+    }
+
     func refresh() {
         guard !refreshing else { return }
         refreshing = true
@@ -68,6 +100,7 @@ final class TokenStore {
             lastClaudeLimitsFetch = Date()
             if self.claudeToken == nil { self.claudeToken = Self.claudeCodeToken() }
             claudeToken = self.claudeToken
+            if claudeToken == nil { renewClaudeSignIn() }
         }
 
         Task {
@@ -79,6 +112,7 @@ final class TokenStore {
                     limits[.anthropic] = try await PlanLimits.fetchClaude(token: claudeToken)
                 } catch {
                     self.claudeToken = nil   // expired or renewed by Claude Code: read it again next time
+                    renewClaudeSignIn()
                 }
             }
             for (provider, key) in keys {
