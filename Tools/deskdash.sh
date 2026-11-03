@@ -59,6 +59,8 @@ make_app() {
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$bin/DeskDash" "$app/Contents/MacOS/DeskDash"
     cp "$ROOT/Resources/Info.plist" "$app/Contents/Info.plist"
+    # The app icon (redraw it with: python3 Tools/make-icon.py).
+    cp "$ROOT/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
     sign_app "$app"
     echo "Built $app"
 }
