@@ -73,7 +73,8 @@ struct ProviderRow: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 }
-                if usage.apiCost30Days > 0 {
+                // Always shown for Anthropic, so it's clear where API charges will appear.
+                if usage.provider == .anthropic || usage.apiCost30Days > 0 {
                     Text(apiCost)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -106,7 +107,8 @@ struct ProviderRow: View {
 
     /// "API charges: $0.62 today · $4.10 in 30 days (estimate)"
     private var apiCost: String {
-        "API charges: \(APIPrice.text(usage.apiCostToday)) today · \(APIPrice.text(usage.apiCost30Days)) in 30 days (estimate)"
+        if usage.apiCost30Days == 0 { return "API charges: $0.00 (none logged yet)" }
+        return "API charges: \(APIPrice.text(usage.apiCostToday)) today · \(APIPrice.text(usage.apiCost30Days)) in 30 days (estimate)"
     }
 
     private var tooltip: String {
