@@ -95,6 +95,10 @@ public struct ProviderUsage: Identifiable, Hashable, Sendable {
     /// plan, so they aren't counted here.
     public var searchesToday: Int64 = 0
     public var searches30Days: Int64 = 0
+    /// Estimated charge (US dollars) for API-key use: tokens at list price plus web searches.
+    /// Plan use (Claude Code, Codex, Gemini CLI) isn't charged per token, so it isn't in here.
+    public var apiCostToday: Double = 0
+    public var apiCost30Days: Double = 0
 
     public init(provider: AIProvider) {
         self.provider = provider
@@ -105,6 +109,7 @@ public struct ProviderUsage: Identifiable, Hashable, Sendable {
             && a.last30Days == b.last30Days
             && a.hourly == b.hourly && a.sources == b.sources
             && a.searchesToday == b.searchesToday && a.searches30Days == b.searches30Days
+            && a.apiCostToday == b.apiCostToday && a.apiCost30Days == b.apiCost30Days
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -136,8 +141,15 @@ public enum UsageSummary {
                 if event.date >= hourAgo { usage.lastHour += event.tokens }
                 if event.date >= monthAgo { usage.last30Days += event.tokens }
                 if event.source == .apps || event.source == .accountAPI {
-                    if event.date >= monthAgo { usage.searches30Days += event.webSearches }
-                    if event.date >= startOfToday { usage.searchesToday += event.webSearches }
+                    let cost = APIPrice.dollars(event)
+                    if event.date >= monthAgo {
+                        usage.searches30Days += event.webSearches
+                        usage.apiCost30Days += cost
+                    }
+                    if event.date >= startOfToday {
+                        usage.searchesToday += event.webSearches
+                        usage.apiCostToday += cost
+                    }
                 }
                 if event.date >= weekAgo { usage.last7Days += event.tokens }
                 if event.date >= startOfToday {
@@ -165,6 +177,46 @@ public enum WebSearchPrice {
     /// "$0.41", or "$1,204.50".
     public static func text(_ searches: Int64) -> String {
         dollars(searches).formatted(.currency(code: "USD").precision(.fractionLength(2)))
+    }
+}
+
+/// Anthropic API list prices per million tokens (US dollars), checked November 2026. Used for an estimate only;
+/// the real bill is in the Claude Console. OpenAI and Google use aren't priced yet (their cost stays 0).
+public enum APIPrice {
+    public struct Rates: Sendable, Equatable {
+        public let input, output, cacheRead, cacheWrite: Double
+    }
+
+    /// Nil when the model isn't one DeskDash knows a price for.
+    public static func rates(for model: String) -> Rates? {
+        let m = model.lowercased()
+        guard m.contains("claude") || m.contains("fable") || m.contains("mythos") || m.contains("opus")
+                || m.contains("sonnet") || m.contains("haiku") else { return nil }
+        if m.contains("fable") || m.contains("mythos") { return Rates(input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5) }
+        if m.contains("opus-5-5") { return Rates(input: 4, output: 20, cacheRead: 0.20, cacheWrite: 5) }
+        if m.contains("opus") { return Rates(input: 5, output: 25, cacheRead: 0.50, cacheWrite: 6.25) }
+        if m.contains("sonnet-4") { return Rates(input: 3, output: 15, cacheRead: 0.30, cacheWrite: 3.75) }
+        if m.contains("sonnet") { return Rates(input: 2, output: 10, cacheRead: 0.20, cacheWrite: 2.5) }
+        if m.contains("haiku-4") { return Rates(input: 1, output: 5, cacheRead: 0.10, cacheWrite: 1.25) }
+        if m.contains("haiku") { return Rates(input: 0.10, output: 0.50, cacheRead: 0.01, cacheWrite: 0.125) }
+        return Rates(input: 4, output: 20, cacheRead: 0.20, cacheWrite: 5)
+    }
+
+    /// Tokens at list price plus web searches. Cache writes are priced at the 5-minute rate.
+    public static func dollars(_ event: UsageEvent) -> Double {
+        var total = WebSearchPrice.dollars(event.webSearches)
+        if event.provider == .anthropic, let r = rates(for: event.model) {
+            let t = event.tokens
+            total += (Double(t.input) * r.input + Double(t.output) * r.output
+                + Double(t.cacheRead) * r.cacheRead + Double(t.cacheWrite) * r.cacheWrite) / 1_000_000
+        }
+        return total
+    }
+
+    /// "$1.23", or "under $0.01".
+    public static func text(_ dollars: Double) -> String {
+        if dollars > 0, dollars < 0.01 { return "under $0.01" }
+        return dollars.formatted(.currency(code: "USD").precision(.fractionLength(2)))
     }
 }
 

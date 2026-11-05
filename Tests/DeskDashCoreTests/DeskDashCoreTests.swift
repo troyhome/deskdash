@@ -150,6 +150,24 @@ final class TokenUsageTests: XCTestCase {
         XCTAssertEqual(WebSearchPrice.dollars(41), 0.41, accuracy: 0.0001)
     }
 
+    func testAPIChargesAddTokensAndSearches() {
+        let now = ISO8601DateFormatter().date(from: "2026-11-04T22:00:00Z")!
+        let events = [
+            // 1M input + 100K output on Opus 5.5 = $4 + $2, plus 10 searches = $0.10.
+            UsageEvent(provider: .anthropic, source: .apps, model: "claude-opus-5-5", date: now.addingTimeInterval(-60),
+                       tokens: TokenCount(input: 1_000_000, output: 100_000), webSearches: 10),
+            // Claude Code runs on the plan: no per-token charge.
+            UsageEvent(provider: .anthropic, source: .claudeCode, model: "claude-opus-5-5",
+                       date: now.addingTimeInterval(-60), tokens: TokenCount(input: 1_000_000)),
+        ]
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let anthropic = UsageSummary.summarize(events, now: now, calendar: calendar).first { $0.provider == .anthropic }!
+        XCTAssertEqual(anthropic.apiCostToday, 6.10, accuracy: 0.0001)
+        XCTAssertEqual(anthropic.apiCost30Days, 6.10, accuracy: 0.0001)
+        XCTAssertEqual(APIPrice.text(0.004), "under $0.01")
+    }
+
     func testCodexSkipsRepeatedCounts() {
         let log = """
         {"timestamp":"2026-10-29T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5-codex"}}
