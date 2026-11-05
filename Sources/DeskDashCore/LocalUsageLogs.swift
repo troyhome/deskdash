@@ -8,6 +8,10 @@ import Foundation
 /// - Codex CLI: `~/.codex/sessions/**/rollout-*.jsonl`, `token_count` events.
 /// - Gemini CLI: `~/.gemini/tmp/*/chats/session-*.json`, `tokens` on each Gemini message.
 /// - Antigravity: `~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl`, one line per step.
+/// - Troy's own apps (Even Quicker and others): `~/Library/Application Support/DeskDash/API Usage/*.jsonl`, one
+///   line per Claude API reply: `{"date": "<ISO 8601>", "app": "Even Quicker", "model": "...", "usage": {...}}`,
+///   where `usage` is the reply's `usage` object as the API sent it (tokens, and web searches in
+///   `server_tool_use.web_search_requests`).
 ///
 /// Files are only re-read when they change.
 public final class LocalUsageLogs: @unchecked Sendable {
@@ -46,8 +50,14 @@ public final class LocalUsageLogs: @unchecked Sendable {
             guard let modified, modified >= since else { continue }
             all += cached(file) { Self.antigravityEvents(in: $0) }
         }
+        for file in files(under: home.appendingPathComponent(Self.appsFolder), suffix: ".jsonl", since: since) {
+            all += cached(file) { Self.appEvents(in: $0) }
+        }
         return all.filter { $0.date >= since }
     }
+
+    /// Where apps write their API usage for DeskDash to read.
+    public static let appsFolder = "Library/Application Support/DeskDash/API Usage"
 
     private func files(under root: URL, suffix: String, since: Date) -> [URL] {
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
@@ -157,6 +167,23 @@ public final class LocalUsageLogs: @unchecked Sendable {
             guard tokens.total > 0 else { return }
             events.append(UsageEvent(provider: .google, source: .antigravity,
                                      model: line["model"] as? String ?? "gemini", date: date, tokens: tokens))
+        }
+        return events
+    }
+
+    static func appEvents(in data: Data) -> [UsageEvent] {
+        var events: [UsageEvent] = []
+        forEachJSONLine(in: data, containing: "\"usage\"") { line in
+            guard let usage = line["usage"] as? [String: Any],
+                  let date = (line["date"] as? String).flatMap(parseDate) else { return }
+            let tokens = TokenCount(input: int(usage["input_tokens"]), output: int(usage["output_tokens"]),
+                                    cacheRead: int(usage["cache_read_input_tokens"]),
+                                    cacheWrite: int(usage["cache_creation_input_tokens"]))
+            let searches = int((usage["server_tool_use"] as? [String: Any])?["web_search_requests"])
+            guard tokens.total > 0 || searches > 0 else { return }
+            events.append(UsageEvent(provider: .anthropic, source: .apps,
+                                     model: line["model"] as? String ?? (line["app"] as? String ?? "claude"),
+                                     date: date, tokens: tokens, webSearches: searches))
         }
         return events
     }

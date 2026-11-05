@@ -66,6 +66,22 @@ struct ProviderRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
+                if usage.searches30Days > 0 {
+                    Text(searches)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                if usage.apiCost30Days > 0 {
+                    Text(apiCost)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .help("Estimated from list prices: tokens plus $10 per 1,000 web searches. "
+                              + "Your real bill is in the Claude Console.")
+                }
             }
             if let problem {
                 Text(problem).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
@@ -79,6 +95,18 @@ struct ProviderRow: View {
                      "\(TokenFormat.short(usage.last7Days.total)) week",
                      "\(TokenFormat.short(usage.last30Days.total)) 30 days"]
         return parts.joined(separator: " · ")
+    }
+
+    /// "Web searches: 3 today · 41 in 30 days · $0.41"
+    private var searches: String {
+        ["Web searches: \(usage.searchesToday) today",
+         "\(usage.searches30Days) in 30 days",
+         WebSearchPrice.text(usage.searches30Days)].joined(separator: " · ")
+    }
+
+    /// "API charges: $0.62 today · $4.10 in 30 days (estimate)"
+    private var apiCost: String {
+        "API charges: \(APIPrice.text(usage.apiCostToday)) today · \(APIPrice.text(usage.apiCost30Days)) in 30 days (estimate)"
     }
 
     private var tooltip: String {
