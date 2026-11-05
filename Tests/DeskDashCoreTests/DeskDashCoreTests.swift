@@ -117,6 +117,39 @@ final class TokenUsageTests: XCTestCase {
         XCTAssertEqual(events.first?.model, "claude-opus-5-5")
     }
 
+    func testAppLogCountsTokensAndSearches() {
+        let log = """
+        {"date":"2026-11-04T21:13:00Z","app":"Even Quicker","model":"claude-opus-5-5","usage":{"input_tokens":1200,"output_tokens":300,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"server_tool_use":{"web_search_requests":2,"web_fetch_requests":0}}}
+        {"date":"2026-11-04T21:14:00Z","app":"Even Quicker","model":"claude-opus-5-5","usage":{"input_tokens":0,"output_tokens":0}}
+        not json
+        """
+        let events = LocalUsageLogs.appEvents(in: Data(log.utf8))
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.source, .apps)
+        XCTAssertEqual(events.first?.tokens, TokenCount(input: 1200, output: 300))
+        XCTAssertEqual(events.first?.webSearches, 2)
+    }
+
+    func testSearchesCountOnlyForAPIUseAndCostACentEach() {
+        let now = ISO8601DateFormatter().date(from: "2026-11-04T22:00:00Z")!
+        let tokens = TokenCount(input: 10)
+        let events = [
+            UsageEvent(provider: .anthropic, source: .apps, model: "m", date: now.addingTimeInterval(-60),
+                       tokens: tokens, webSearches: 3),
+            UsageEvent(provider: .anthropic, source: .accountAPI, model: "m", date: now.addingTimeInterval(-10 * 86400),
+                       tokens: tokens, webSearches: 38),
+            // Claude Code's searches come with its plan, so they're not charged.
+            UsageEvent(provider: .anthropic, source: .claudeCode, model: "m", date: now.addingTimeInterval(-60),
+                       tokens: tokens, webSearches: 5),
+        ]
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let anthropic = UsageSummary.summarize(events, now: now, calendar: calendar).first { $0.provider == .anthropic }!
+        XCTAssertEqual(anthropic.searchesToday, 3)
+        XCTAssertEqual(anthropic.searches30Days, 41)
+        XCTAssertEqual(WebSearchPrice.dollars(41), 0.41, accuracy: 0.0001)
+    }
+
     func testCodexSkipsRepeatedCounts() {
         let log = """
         {"timestamp":"2026-10-29T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5-codex"}}

@@ -26,6 +26,8 @@ public enum UsageSource: String, Hashable, Sendable {
     case antigravity = "Antigravity"
     /// The provider's usage report for the whole account (needs an admin key).
     case accountAPI = "API account"
+    /// Troy's own apps (Even Quicker and others) that log each API reply they get.
+    case apps = "Your apps"
 }
 
 public struct TokenCount: Hashable, Sendable {
@@ -60,15 +62,18 @@ public struct UsageEvent: Hashable, Sendable {
     public let tokens: TokenCount
     /// Identifies one reply, to count it once when it appears in several logs.
     public let replyID: String?
+    /// Web searches Claude ran for this reply (billed per search on an API key).
+    public let webSearches: Int64
 
     public init(provider: AIProvider, source: UsageSource, model: String, date: Date, tokens: TokenCount,
-                replyID: String? = nil) {
+                replyID: String? = nil, webSearches: Int64 = 0) {
         self.provider = provider
         self.source = source
         self.model = model
         self.date = date
         self.tokens = tokens
         self.replyID = replyID
+        self.webSearches = webSearches
     }
 }
 
@@ -86,6 +91,10 @@ public struct ProviderUsage: Identifiable, Hashable, Sendable {
     public var modelsToday: [(model: String, tokens: Int64)] = []
     public var sources: Set<UsageSource> = []
     public var todayBySource: [UsageSource: Int64] = [:]
+    /// Web searches made with an API key (apps and the account report). Claude Code's searches are part of its
+    /// plan, so they aren't counted here.
+    public var searchesToday: Int64 = 0
+    public var searches30Days: Int64 = 0
 
     public init(provider: AIProvider) {
         self.provider = provider
@@ -95,6 +104,7 @@ public struct ProviderUsage: Identifiable, Hashable, Sendable {
         a.provider == b.provider && a.lastHour == b.lastHour && a.today == b.today && a.last7Days == b.last7Days
             && a.last30Days == b.last30Days
             && a.hourly == b.hourly && a.sources == b.sources
+            && a.searchesToday == b.searchesToday && a.searches30Days == b.searches30Days
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -125,6 +135,10 @@ public enum UsageSummary {
                 usage.sources.insert(event.source)
                 if event.date >= hourAgo { usage.lastHour += event.tokens }
                 if event.date >= monthAgo { usage.last30Days += event.tokens }
+                if event.source == .apps || event.source == .accountAPI {
+                    if event.date >= monthAgo { usage.searches30Days += event.webSearches }
+                    if event.date >= startOfToday { usage.searchesToday += event.webSearches }
+                }
                 if event.date >= weekAgo { usage.last7Days += event.tokens }
                 if event.date >= startOfToday {
                     usage.today += event.tokens
@@ -139,6 +153,18 @@ public enum UsageSummary {
             usage.modelsToday = models.sorted { $0.value > $1.value }.map { ($0.key, $0.value) }
             return usage
         }
+    }
+}
+
+/// What web searches cost on an API key: $10 per 1,000 searches (Anthropic's list price), on top of tokens.
+public enum WebSearchPrice {
+    public static let dollarsPerSearch = 0.01
+
+    public static func dollars(_ searches: Int64) -> Double { Double(searches) * dollarsPerSearch }
+
+    /// "$0.41", or "$1,204.50".
+    public static func text(_ searches: Int64) -> String {
+        dollars(searches).formatted(.currency(code: "USD").precision(.fractionLength(2)))
     }
 }
 

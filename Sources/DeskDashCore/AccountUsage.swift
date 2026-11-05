@@ -115,6 +115,7 @@ public enum AccountUsage {
             guard let start, let results = bucket["results"] as? [[String: Any]] else { continue }
             for result in results {
                 let tokens: TokenCount
+                let searches = LocalUsageLogs.int((result["server_tool_use"] as? [String: Any])?["web_search_requests"])
                 if provider == .openai {
                     let cached = LocalUsageLogs.int(result["input_cached_tokens"])
                     tokens = TokenCount(input: max(0, LocalUsageLogs.int(result["input_tokens"]) - cached),
@@ -127,10 +128,10 @@ public enum AccountUsage {
                                         cacheWrite: LocalUsageLogs.int(creation?["ephemeral_5m_input_tokens"])
                                             + LocalUsageLogs.int(creation?["ephemeral_1h_input_tokens"]))
                 }
-                guard tokens.total > 0 else { continue }
+                guard tokens.total > 0 || searches > 0 else { continue }
                 events.append(UsageEvent(provider: provider, source: .accountAPI,
                                          model: result["model"] as? String ?? provider.title,
-                                         date: start, tokens: tokens))
+                                         date: start, tokens: tokens, webSearches: searches))
             }
         }
         let more = root["has_more"] as? Bool ?? false

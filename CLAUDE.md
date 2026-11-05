@@ -26,6 +26,11 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
   Mac, hourly buckets, `SharedUsage.swift`), so with both Macs on they read "on all your Macs". The Claude app and
   website keep no counts on the Mac, so they're never in the counts (they are in the limits).
 
+- API web searches: Troy's own apps (Even Quicker first) append one line per Claude API reply to
+  `~/Library/Application Support/DeskDash/API Usage/<app>.jsonl` (`date`, `app`, `model`, and the reply's `usage`).
+  DeskDash adds those tokens to the Anthropic counts and shows "Web searches: N today · N in 30 days · $X" at
+  $10 per 1,000 (`WebSearchPrice`). Searches from the account report count too; Claude Code's don't (its plan covers them).
+
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).
