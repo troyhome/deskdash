@@ -30,6 +30,8 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
   `~/Library/Application Support/DeskDash/API Usage/<app>.jsonl` (`date`, `app`, `model`, and the reply's `usage`).
   DeskDash adds those tokens to the Anthropic counts and shows "Web searches: N today · N in 30 days · $X" at
   $10 per 1,000 (`WebSearchPrice`). Searches from the account report count too; Claude Code's don't (its plan covers them).
+  Below that, "API charges: $X today · $Y in 30 days (estimate)": API-key use (apps + account report) priced by
+  model at list price (`APIPrice`, update when prices change) plus searches. Plan use is never priced.
 
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
