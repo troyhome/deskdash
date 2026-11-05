@@ -105,6 +105,15 @@ struct CompactTokens: View {
                             .help("Tokens today \(tokens.countsScope)")
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
+                        if usage.provider == .anthropic || usage.apiCost30Days > 0 {
+                            Text(apiCost(usage))
+                                .help("Estimated API charges: tokens at list price plus $10 per 1,000 web searches. "
+                                      + "Your real bill is in the Claude Console.")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
                     }
                     Spacer(minLength: 4)
                     ForEach(limits) { limit in
@@ -114,6 +123,12 @@ struct CompactTokens: View {
             }
         }
     }
+}
+
+/// "API $0.00", or "API $0.62 today · $4.10 30d".
+private func apiCost(_ usage: ProviderUsage) -> String {
+    if usage.apiCost30Days == 0 { return "API $0.00" }
+    return "API \(APIPrice.text(usage.apiCostToday)) today · \(APIPrice.text(usage.apiCost30Days)) 30d"
 }
 
 /// One plan limit as a ring: the colored part is what's used, the number is what's left.
