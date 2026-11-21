@@ -89,14 +89,24 @@ struct DriveDetailView: View {
     @ViewBuilder private var scanStatus: some View {
         if store.isScanning(drive) {
             HStack {
-                Text("Looking through files... \(Bytes.format(store.scanProgress[drive.id] ?? 0)) counted so far.")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Looking through files... \(Bytes.format(store.scanProgress[drive.id] ?? 0)) counted so far"
+                         + (scan.map { " in \($0.fileCount.formatted()) files." } ?? "."))
+                    Text(scan?.isComplete == true
+                         ? "Showing the last finished look until this one has more."
+                         : "The details below fill in as it goes. A big network drive can take a long time.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Stop") { store.cancelScan(drive) }
             }
         } else if let scan {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("Looked through \(scan.fileCount.formatted()) files \(scan.finishedAt.formatted(.relative(presentation: .named))).")
+                    Text(scan.isComplete
+                         ? "Looked through \(scan.fileCount.formatted()) files \(scan.finishedAt.formatted(.relative(presentation: .named)))."
+                         : "Stopped part way, after \(scan.fileCount.formatted()) files: these are the numbers so far.")
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Analyze again") { store.scan(drive) }

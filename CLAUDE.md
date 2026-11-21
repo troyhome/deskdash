@@ -33,6 +33,11 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
   Below that, "API charges: $X today · $Y in 30 days (estimate)": API-key use (apps + account report) priced by
   model at list price (`APIPrice`, update when prices change) plus searches. Plan use is never priced.
 
+- Scanning (`DiskScanner`): lists two levels of each root, then several workers walk the folders at once (10 for
+  network drives, 6 local; SMB on CRUSHER does ~250 files/s with one, ~700 with 10-12). Partial results reach the
+  details window every 3 s; finished scans are saved in ~/Library/Application Support/DeskDash/Scans. A drive made
+  of several shares of one network disk scans every share (`Drive.shares`). Stop keeps the last finished scan.
+
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).

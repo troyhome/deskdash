@@ -1,7 +1,7 @@
 import Foundation
 
 /// What kind of data a file is, for the colored bar and the drill-down.
-public enum StorageCategory: String, CaseIterable, Identifiable, Hashable, Sendable {
+public enum StorageCategory: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
     case apps, photos, videos, music, documents, archives, developer, caches, backups, trash, other
 
     public var id: String { rawValue }

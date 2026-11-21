@@ -339,3 +339,46 @@ final class SharedUsageTests: XCTestCase {
         XCTAssertEqual(claude.date, start.addingTimeInterval(60))
     }
 }
+
+final class ParallelScanTests: XCTestCase {
+    func testDeepFoldersAddUpAcrossWorkersAndReportAsTheyGo() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("DeskDashDeep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        // 3 top folders x 4 subfolders x 5 files, plus files at levels one and two.
+        for top in 0..<3 {
+            for sub in 0..<4 {
+                let folder = root.appendingPathComponent("Top\(top)/Sub\(sub)/deeper")
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                for file in 0..<5 {
+                    try Data(count: 5000).write(to: folder.appendingPathComponent("f\(file).txt"))
+                }
+            }
+            try Data(count: 5000).write(to: root.appendingPathComponent("Top\(top)/loose.txt"))
+        }
+        try Data(count: 5000).write(to: root.appendingPathComponent("top.txt"))
+
+        final class Box: @unchecked Sendable { var partials = 0; let lock = NSLock() }
+        let box = Box()
+        let result = DiskScanner.scan(roots: [root], workers: 4, partial: { _ in
+            box.lock.lock(); box.partials += 1; box.lock.unlock()
+        })
+        XCTAssertEqual(result.fileCount, 3 * 4 * 5 + 3 + 1)
+        XCTAssertTrue(result.isComplete)
+        XCTAssertEqual(result.bytesByFolder.count, 4)   // 3 folders and the loose top.txt
+        XCTAssertEqual(result.largestFolders().first.map { $0.bytes }, result.bytesByFolder.values.max())
+
+        let decoded = try JSONDecoder().decode(ScanResult.self, from: JSONEncoder().encode(result))
+        XCTAssertEqual(decoded.fileCount, result.fileCount)
+    }
+
+    func testMergedSharesScanEveryShare() {
+        let shares = ["Movies", "music"].map { name in
+            Drive(id: "/Volumes/\(name)", name: name, url: URL(fileURLWithPath: "/Volumes/\(name)"), kind: .network,
+                  isBoot: false, isEjectable: true, totalBytes: 10, availableBytes: 1, server: "crusher")
+        }
+        let merged = DriveList.mergingShares(shares.reversed())
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged.first?.id, "/Volumes/Movies")
+        XCTAssertEqual(merged.first?.scanRoots.map(\.lastPathComponent), ["Movies", "music"])
+    }
+}

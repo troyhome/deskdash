@@ -15,11 +15,13 @@ final class DriveStore {
     private(set) var scanProgress: [String: Int64] = [:]
 
     @ObservationIgnored private var scanTasks: [String: Task<ScanResult, Never>] = [:]
+    @ObservationIgnored private var stopFlags: [String: StopFlag] = [:]
     @ObservationIgnored private var timer: Timer?
 
     @ObservationIgnored private var cloudTimer: Timer?
 
     private init() {
+        scans = ScanArchive.loadAll()
         refresh()
         refreshCloud()
         // Free space changes all the time; drives come and go.
@@ -69,27 +71,47 @@ final class DriveStore {
         let id = drive.id
         guard scanTasks[id] == nil else { return }
         let roots = drive.scanRoots
+        // A network disk is slow per question but answers many at once.
+        let workers = drive.kind == .network ? 10 : 6
+        let stop = StopFlag()
+        // The last finished scan stays on screen until the new one has found something.
+        let previous = scans[id]
         scanProgress[id] = 0
+        stopFlags[id] = stop
         let task = Task.detached(priority: .utility) {
-            DiskScanner.scan(roots: roots, progress: { bytes in
+            DiskScanner.scan(roots: roots, workers: workers, progress: { bytes in
                 Task { @MainActor in DriveStore.shared.updateProgress(id, bytes) }
-            })
+            }, partial: { soFar in
+                Task { @MainActor in DriveStore.shared.updatePartial(id, soFar) }
+            }, isCancelled: { stop.isSet })
         }
         scanTasks[id] = task
         Task {
             let result = await task.value
             scanTasks[id] = nil
             scanProgress[id] = nil
-            if !result.wasCancelled { scans[id] = result }
+            stopFlags[id] = nil
+            if result.wasCancelled {
+                // Stopped: keep the last finished scan, or what this one found if there was none.
+                scans[id] = previous?.isComplete == true ? previous : result
+            } else {
+                scans[id] = result
+                ScanArchive.save(result, for: id)
+            }
         }
     }
 
     func cancelScan(_ drive: Drive) {
-        scanTasks[drive.id]?.cancel()
+        stopFlags[drive.id]?.set()
     }
 
     private func updateProgress(_ id: String, _ bytes: Int64) {
         if scanTasks[id] != nil { scanProgress[id] = bytes }
+    }
+
+    /// Shows the numbers so far while a scan is still going.
+    private func updatePartial(_ id: String, _ soFar: ScanResult) {
+        if scanTasks[id] != nil { scans[id] = soFar }
     }
 
     func suggestions(for drive: Drive) -> [Suggestion] {

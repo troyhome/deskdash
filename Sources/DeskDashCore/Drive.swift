@@ -17,6 +17,8 @@ public struct Drive: Identifiable, Hashable, Sendable {
     public let availableBytes: Int64
     /// The server a network share comes from ("crusher"), nil for local drives.
     public let server: String?
+    /// For several shares of one network disk listed as one drive: every share, so a scan covers all of them.
+    public var shares: [URL] = []
 
     public init(id: String, name: String, url: URL, kind: Kind, isBoot: Bool, isEjectable: Bool,
                 totalBytes: Int64, availableBytes: Int64, server: String? = nil) {
@@ -37,6 +39,7 @@ public struct Drive: Identifiable, Hashable, Sendable {
     /// Folders to look through when sorting the drive into categories. On the Mac's own disk only the parts the
     /// user owns (the rest is macOS itself and shows as "System & other").
     public var scanRoots: [URL] {
+        if !shares.isEmpty { return shares }
         guard isBoot else { return [url] }
         return [FileManager.default.homeDirectoryForCurrentUser, URL(fileURLWithPath: "/Applications", isDirectory: true)]
     }
@@ -73,15 +76,18 @@ public enum DriveList {
             shares[key, default: []].append(drive)
         }
         for key in keys {
-            guard let group = shares[key], let first = group.first else { continue }
+            // Sorted by name, so the merged drive keeps the same id (and its scan) whatever order macOS lists them in.
+            guard let group = shares[key]?.sorted(by: { $0.name.localizedStandardCompare($1.name) == .orderedAscending }),
+                  let first = group.first else { continue }
             if group.count == 1 {
                 result.append(first)
                 continue
             }
-            let names = group.map(\.name).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-            result.append(Drive(id: first.id, name: "\(first.server ?? first.name) (\(names.joined(separator: ", ")))",
-                                url: first.url, kind: .network, isBoot: false, isEjectable: first.isEjectable,
-                                totalBytes: first.totalBytes, availableBytes: first.availableBytes, server: first.server))
+            var merged = Drive(id: first.id, name: "\(first.server ?? first.name) (\(group.map(\.name).joined(separator: ", ")))",
+                               url: first.url, kind: .network, isBoot: false, isEjectable: first.isEjectable,
+                               totalBytes: first.totalBytes, availableBytes: first.availableBytes, server: first.server)
+            merged.shares = group.map(\.url)
+            result.append(merged)
         }
         return result
     }
