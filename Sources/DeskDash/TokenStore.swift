@@ -57,8 +57,30 @@ final class TokenStore {
     /// Claude Code's sign-in, which carries the Claude plan's limits. Kept in the Keychain on a Mac.
     private static func claudeCodeToken() -> String? {
         let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
-        let saved = Keychain.readData(service: "Claude Code-credentials") ?? (try? Data(contentsOf: file))
+        let saved = claudeCodeKeychainItem() ?? (try? Data(contentsOf: file))
         return saved.flatMap { PlanLimits.claudeToken(fromCredentials: $0) }
+    }
+
+    /// Claude Code saves its sign-in with macOS's own "security" tool, so that tool can read it back without macOS
+    /// asking for the login password. (Reading it directly made macOS ask every time Claude Code renewed its
+    /// sign-in, and DeskDash stood still until someone answered.) Gives up after 5 seconds.
+    private static func claudeCodeKeychainItem() -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let deadline = Date().addingTimeInterval(5)
+        while process.isRunning && Date() < deadline { usleep(20_000) }
+        if process.isRunning {
+            process.terminate()
+            return nil
+        }
+        guard process.terminationStatus == 0 else { return nil }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return data.isEmpty ? nil : data
     }
 
     /// Where the Claude Code program is, if it's on this Mac.

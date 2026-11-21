@@ -41,7 +41,13 @@ First feature: disk usage per drive with category drill-down and suggestions. Se
 ## Layout
 - Swift package, no Xcode project. `DeskDashCore` = drives, scanning, categories, suggestions (tested).
   `DeskDash` = the app (menu bar, desktop widget panel, details window).
-- The desktop widget is an `NSPanel` at desktop-icon level + 1 (below normal windows, on all Spaces).
+- The desktop widget is an `NSPanel` at desktop-icon level + 1 (below normal windows, on all Spaces). Drag any empty
+  spot to move it (`DesktopBlur(draggable:)`); the spot is saved.
+- The menu bar icon and its panel are hand-made (`MenuBarPanel.swift`), not SwiftUI's MenuBarExtra: that one kept its
+  bottom edge still when the content changed height (e.g. Compact on), so the panel slid down the screen. Ours keeps
+  its top under the icon (top right of the screen if the icon is hidden). The app starts in plain AppKit (`DeskDashMain`).
+- Claude Code's sign-in is read with `/usr/bin/security`, never SecItemCopyMatching: Claude Code rewrites that item
+  when it renews, so a direct read made macOS ask for the login password and froze DeskDash until answered.
 - The details window is AppKit-managed (`DetailsWindowController`) so both the widget and the menu bar can open it.
 
 ## Rules

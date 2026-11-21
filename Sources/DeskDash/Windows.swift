@@ -53,7 +53,8 @@ final class DesktopWidgetController: NSObject, NSWindowDelegate {
     private func pinTop(_ panel: NSWindow) {
         guard var point = topLeft else { return }
         if let area = (panel.screen ?? NSScreen.main)?.visibleFrame {
-            point.y = min(point.y, area.maxY)
+            // Kept on the screen: never above the menu bar, never so low the top would be off the bottom.
+            point.y = max(min(point.y, area.maxY), area.minY + 60)
             point.x = min(max(point.x, area.minX), area.maxX - panel.frame.width)
         }
         if panel.frame.origin.x != point.x || panel.frame.maxY != point.y {

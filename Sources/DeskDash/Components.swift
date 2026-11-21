@@ -176,19 +176,40 @@ struct CloudCard: View {
 /// The frosted see-through background of the desktop widget.
 struct DesktopBlur: NSViewRepresentable {
     var cornerRadius: CGFloat
+    var material: NSVisualEffectView.Material = .hudWindow
+    /// Dragging the background moves the window (the desktop widget can go anywhere).
+    var draggable = false
 
     func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
+        let view = DragBackgroundView()
+        view.material = material
         view.blendingMode = .behindWindow
         view.state = .active
         view.wantsLayer = true
         view.layer?.cornerRadius = cornerRadius
         view.layer?.masksToBounds = true
+        view.draggable = draggable
         return view
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
         view.layer?.cornerRadius = cornerRadius
+        view.material = material
+        (view as? DragBackgroundView)?.draggable = draggable
+    }
+}
+
+/// A blurred background that, when allowed, lets a press-and-drag on any empty spot move its window.
+final class DragBackgroundView: NSVisualEffectView {
+    var draggable = false
+
+    override var mouseDownCanMoveWindow: Bool { draggable }
+
+    override func mouseDown(with event: NSEvent) {
+        if draggable, let window {
+            window.performDrag(with: event)
+        } else {
+            super.mouseDown(with: event)
+        }
     }
 }

@@ -135,7 +135,7 @@ struct DesktopWidgetView: View {
         DashboardView()
             .padding(compact ? 12 : 16)
             .frame(width: compact ? 250 : 360)
-            .background(DesktopBlur(cornerRadius: 18))
+            .background(DesktopBlur(cornerRadius: 18, draggable: true))
             .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 }
@@ -154,12 +154,17 @@ struct MenuBarView: View {
                 }
             Toggle("Compact (rings instead of bars)", isOn: $compact)
             HStack {
-                Button("Open DeskDash") { DetailsWindowController.shared.show() }
+                Button("Open DeskDash") {
+                    MenuBarController.shared.close()
+                    DetailsWindowController.shared.show()
+                }
                 Spacer()
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }
         }
         .padding(16)
         .frame(width: compact ? 280 : 360)
+        .background(DesktopBlur(cornerRadius: 12, material: .popover))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
